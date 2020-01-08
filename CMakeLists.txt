@@ -6,15 +6,11 @@ add_definitions(-DGF_PLUGIN_NAME=\"${PROJECT_NAME}\")
 find_package(geoflow REQUIRED)
 find_package(glm REQUIRED)
 
-add_library(gfp_basic3d MODULE
-  plugin.cpp
+set(GF_PLUGIN_NAME ${PROJECT_NAME})
+set(GF_PLUGIN_TARGET_NAME "gfp_basic3d")
+set(GF_PLUGIN_REGISTER ${PROJECT_SOURCE_DIR}/register.hpp)
+geoflow_create_plugin(
   nodes.cpp
 )
+
 target_link_libraries(gfp_basic3d geoflow-core glm)
-
-set_target_properties(
-  gfp_basic3d
-  PROPERTIES CXX_STANDARD 17
-)
-
-install(TARGETS gfp_basic3d DESTINATION ${geoflow_PLUGIN_FOLDER})
