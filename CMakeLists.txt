@@ -3,6 +3,13 @@ project (Basic3D VERSION 0.0.1)
 
 add_definitions(-DGF_PLUGIN_NAME=\"${PROJECT_NAME}\")
 
+if(EXISTS "${PROJECT_SOURCE_DIR}/.gitmodules")
+  execute_process(
+    COMMAND             git submodule update --init poly2tri
+    WORKING_DIRECTORY   ${PROJECT_SOURCE_DIR}/thirdparty
+    )
+endif()  
+
 find_package(geoflow REQUIRED)
 find_package(glm REQUIRED)
 add_subdirectory(thirdparty/poly2tri)
