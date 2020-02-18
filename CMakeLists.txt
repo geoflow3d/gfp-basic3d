@@ -6,7 +6,7 @@ add_definitions(-DGF_PLUGIN_NAME=\"${PROJECT_NAME}\")
 if(EXISTS "${PROJECT_SOURCE_DIR}/.gitmodules")
   execute_process(
     COMMAND             git submodule update --init poly2tri
-    WORKING_DIRECTORY   ${PROJECT_SOURCE_DIR}/thirdparty
+    WORKING_DIRECTORY   ${PROJECT_SOURCE_DIR}
     )
 endif()  
 
