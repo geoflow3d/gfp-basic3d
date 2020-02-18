@@ -1,0 +1,3 @@
+[submodule "thirdparty/poly2tri"]
+	path = thirdparty/poly2tri
+	url = https://github.com/jhasse/poly2tri.git
