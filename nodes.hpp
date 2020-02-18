@@ -18,43 +18,11 @@
 
 #include <geoflow/geoflow.hpp>
 
-#include "earcut.hpp"
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 namespace geoflow::nodes::basic3d
 {
 
 class RingTriangulatorNode : public Node
 {
-  glm::vec3 calculate_normal(const LinearRing ring)
-  {
-    glm::vec3 normal(0, 0, 0);
-    for (size_t i = 0; i < ring.size(); ++i)
-    {
-      const auto &curr = ring[i];
-      const auto &next = ring[(i + 1) % ring.size()];
-      normal[0] += (curr[1] - next[1]) * (curr[2] + next[2]);
-      normal[1] += (curr[2] - next[2]) * (curr[0] + next[0]);
-      normal[2] += (curr[0] - next[0]) * (curr[1] + next[1]);
-    }
-    return glm::normalize(normal);
-  }
-
-  vec2f project_ring_2d(const LinearRing ring, const glm::vec3 &n)
-  {
-    vec2f ring_2d;
-    auto nx = glm::normalize(glm::vec3(-n.y, n.x, 0));
-    auto ny = glm::normalize(glm::cross(nx, n));
-    for (const auto &p : ring)
-    {
-      auto pp = glm::make_vec3(p.data());
-      ring_2d.push_back({float(glm::dot(pp, nx)),
-                         float(glm::dot(pp, ny))});
-    }
-    return ring_2d;
-  }
-
 public:
   using Node::Node;
 
@@ -62,10 +30,10 @@ public:
   {
     // declare ouput terminals
     add_vector_input("rings", typeid(LinearRing));
-    add_input("valuesf", typeid(vec1f));
-    add_output("valuesf", typeid(vec1f));
-    add_output("triangles", typeid(TriangleCollection));
-    add_output("normals", typeid(vec3f));
+    // add_input("valuesf", typeid(vec1f));
+    // add_output("valuesf", typeid(vec1f));
+    add_output("triangles", typeid(TriangleCollection), true);
+    add_output("normals", typeid(vec3f), true);
   }
 
   void process();
@@ -73,7 +41,9 @@ public:
 
 class OBJWriterNode : public Node
 {
+  int precision=5;
   std::string filepath;
+  bool no_offset = false;
 
 public:
   using Node::Node;
@@ -82,12 +52,15 @@ public:
     add_input("triangles", typeid(TriangleCollection));
 
     add_param("filepath", ParamPath(filepath, "File path"));
+    add_param("no_offset", ParamBool(no_offset, "Do not apply global offset"));
+    add_param("precision", ParamInt(precision, "precision"));
   }
   void process();
 };
 
 class VecOBJWriterNode : public Node
 {
+  int precision=5;
   std::string filepath;
   bool no_offset = false;
 
@@ -99,6 +72,7 @@ public:
 
     add_param("filepath", ParamPath(filepath, "File path"));
     add_param("no_offset", ParamBool(no_offset, "Do not apply global offset"));
+    add_param("precision", ParamInt(precision, "precision"));
   }
   void process();
 };
