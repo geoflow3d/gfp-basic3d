@@ -12,7 +12,7 @@ endif()
 
 find_package(geoflow REQUIRED)
 find_package(glm REQUIRED)
-add_subdirectory(thirdparty/poly2tri)
+add_subdirectory(poly2tri)
 
 set(GF_PLUGIN_NAME ${PROJECT_NAME})
 set(GF_PLUGIN_TARGET_NAME "gfp_basic3d")
@@ -21,4 +21,4 @@ geoflow_create_plugin(
   nodes.cpp
 )
 
-target_link_libraries(gfp_basic3d geoflow-core glm poly2tri)
+target_link_libraries(gfp_basic3d PRIVATE geoflow-core glm poly2tri)
