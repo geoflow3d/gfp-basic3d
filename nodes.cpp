@@ -87,6 +87,7 @@ void RingTriangulatorNode::process()
   TriangleCollection triangles;
   vec3f normals;
   vec1f values_out;
+  vec1i ring_ids;
   size_t vi = 0;
   for (size_t ri = 0; ri < rings.size(); ++ri)
   {
@@ -118,6 +119,7 @@ void RingTriangulatorNode::process()
       {
         normals.push_back({normal.x, normal.y, normal.z});
         // values_out.push_back(values_in[vi]);
+        ring_ids.push_back(ri);
       }
       triangles.push_back(triangle);
     }
@@ -127,6 +129,7 @@ void RingTriangulatorNode::process()
   // set outputs
   output("triangles").set(triangles);
   output("normals").set(normals);
+  output("ring_ids").set(ring_ids);
   // output("valuesf").set(values_out);
 }
 

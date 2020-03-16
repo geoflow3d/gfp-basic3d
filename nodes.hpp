@@ -34,6 +34,7 @@ public:
     // add_output("valuesf", typeid(vec1f));
     add_output("triangles", typeid(TriangleCollection), true);
     add_output("normals", typeid(vec3f), true);
+    add_output("ring_ids", typeid(vec1i));
   }
 
   void process();
