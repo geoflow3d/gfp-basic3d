@@ -162,7 +162,7 @@ void OBJWriterNode::process()
     }
   }
   std::ofstream ofs;
-  ofs.open(filepath);
+  ofs.open(manager.substitute_globals(filepath));
   ofs << std::fixed << std::setprecision(precision);
   for (auto &v : vertex_vec)
   {
@@ -204,7 +204,7 @@ void VecOBJWriterNode::process()
     }
   }
   std::ofstream ofs;
-  ofs.open(filepath);
+  ofs.open(manager.substitute_globals(filepath));
   ofs << std::fixed << std::setprecision(precision);
   for (auto &v : vertex_vec)
   {
