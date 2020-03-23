@@ -98,7 +98,10 @@ void RingTriangulatorNode::process()
       input_vertices.insert(input_vertices.end(), ring.begin(), ring.end());
     }
     auto normal = calculate_normal(poly_3d);
-    // std::cerr << normal[0] << " " << normal[1] << " " << normal[2] << "\n";
+    if (std::isnan(normal.x) || std::isnan(normal.y) || std::isnan(normal.z)){
+      std::cout << "degenerate normal: " << normal[0] << " " << normal[1] << " " << normal[2] << "\n";
+      continue;
+    }
     auto poly_2d = project_polygon_2d(poly_3d, normal);
     p2t::CDT cdt(poly_2d[0]);
     for (size_t i=1; i<poly_2d.size(); ++i) {
