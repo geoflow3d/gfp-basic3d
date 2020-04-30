@@ -52,9 +52,9 @@ public:
   {
     add_input("triangles", typeid(TriangleCollection));
 
-    add_param("filepath", ParamPath(filepath, "File path"));
-    add_param("no_offset", ParamBool(no_offset, "Do not apply global offset"));
-    add_param("precision", ParamInt(precision, "precision"));
+    add_param(ParamPath(filepath, "filepath", "File path"));
+    add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
+    add_param(ParamInt(precision, "precision", "precision"));
   }
   void process();
 };
@@ -71,9 +71,9 @@ public:
   {
     add_vector_input("triangles", typeid(TriangleCollection));
 
-    add_param("filepath", ParamPath(filepath, "File path"));
-    add_param("no_offset", ParamBool(no_offset, "Do not apply global offset"));
-    add_param("precision", ParamInt(precision, "precision"));
+    add_param(ParamPath(filepath, "filepath", "File path"));
+    add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
+    add_param(ParamInt(precision, "precision", "precision"));
   }
   void process();
 };
