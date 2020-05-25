@@ -21,25 +21,6 @@
 namespace geoflow::nodes::basic3d
 {
 
-class RingTriangulatorNode : public Node
-{
-public:
-  using Node::Node;
-
-  void init()
-  {
-    // declare ouput terminals
-    add_vector_input("rings", typeid(LinearRing));
-    // add_input("valuesf", typeid(vec1f));
-    // add_output("valuesf", typeid(vec1f));
-    add_output("triangles", typeid(TriangleCollection));
-    add_output("normals", typeid(vec3f));
-    add_output("ring_ids", typeid(vec1i));
-  }
-
-  void process();
-};
-
 class OBJWriterNode : public Node
 {
   int precision=5;
