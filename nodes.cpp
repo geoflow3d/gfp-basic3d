@@ -59,6 +59,7 @@ void VecOBJWriterNode::process()
     std::set<arr3f> vertex_set;
     for (size_t j = 0; j < triangles.size(); ++j)
     {
+      if(!triangles.get_data_vec()[j].has_value()) continue;
       for (auto &triangle : triangles.get<TriangleCollection>(j))
       {
         for (auto &vertex : triangle)
@@ -85,6 +86,7 @@ void VecOBJWriterNode::process()
   }
   for (size_t j = 0; j < triangles.size(); ++j)
   {
+    if(!triangles.get_data_vec()[j].has_value()) continue;
     ofs << "o " << j << "\n";
     for (auto &triangle : triangles.get<TriangleCollection>(j))
     {
