@@ -50,7 +50,7 @@ public:
   using Node::Node;
   void init()
   {
-    add_vector_input("triangles", typeid(TriangleCollection));
+    add_vector_input("triangles", {typeid(TriangleCollection), typeid(MultiTriangleCollection)});
 
     add_param(ParamPath(filepath, "filepath", "File path"));
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
