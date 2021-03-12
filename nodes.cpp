@@ -1,5 +1,37 @@
 #include "nodes.hpp"
 #include <iomanip>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
+const std::string mtl_text = 
+"newmtl 1\n"
+"Ka 0.8700 0.2600 0.2800\n"
+"Kd 0.8700 0.2600 0.2800\n"
+"Ks 0.8700 0.2600 0.2800\n"
+"illum 2\n"
+"Ns 60.0000\n"
+
+"newmtl 2\n"
+"Ka 0.9000 0.9000 0.7500\n"
+"Kd 0.9000 0.9000 0.7500\n"
+"Ks 0.9000 0.9000 0.7500\n"
+"illum 2\n"
+"Ns 60.0000\n"
+
+"newmtl 3\n"
+"Ka 0.9000 0.9000 0.7500\n"
+"Kd 0.9000 0.9000 0.7500\n"
+"Ks 0.9000 0.9000 0.7500\n"
+"illum 2\n"
+"Ns 60.0000\n"
+
+"newmtl 0\n"
+"Ka 0.6000 0.6000 0.6000\n"
+"Kd 0.6000 0.6000 0.6000\n"
+"Ks 0.6000 0.6000 0.6000\n"
+"illum 2\n"
+"Ns 60.0000\n";
 
 namespace geoflow::nodes::basic3d
 {
@@ -71,6 +103,16 @@ void write_triangles(const TriangleCollection& tc, std::ofstream& ofs, std::map<
   }
 }
 
+void write_triangles(const TriangleCollection& tc, const std::vector<attribute_value>& attr, std::ofstream& ofs, std::map<arr3f, size_t>& vertex_map) {
+  for (size_t i=0; i< tc.size(); ++i)
+  {
+    auto& triangle = tc[i];
+    auto& label = std::get<int>(attr[i]);
+    ofs << "usemtl " << label << "\n";
+    ofs << "f " << vertex_map[triangle[0]] << " " << vertex_map[triangle[1]] << " " << vertex_map[triangle[2]] << "\n";
+  }
+}
+
 void VecOBJWriterNode::process()
 {
   auto &triangles = vector_input("triangles");
@@ -106,6 +148,7 @@ void VecOBJWriterNode::process()
     }
     ofs.close();
   } else if(triangles.is_connected_type(typeid(MultiTriangleCollection))) {
+
     {
       std::set<arr3f> vertex_set;
       for (size_t j = 0; j < triangles.size(); ++j)
@@ -119,8 +162,19 @@ void VecOBJWriterNode::process()
         }
       }
     }
+    auto fname = manager.substitute_globals(filepath);
+    auto mtl_path = fs::path(fname+".mtl");
+
+    fs::create_directories(mtl_path.parent_path());
+    
+    std::ofstream ofs_mtl;
+    ofs_mtl.open(mtl_path.c_str());
+    ofs_mtl << mtl_text;
+    ofs_mtl.close();
+    
     std::ofstream ofs;
-    ofs.open(manager.substitute_globals(filepath));
+    ofs.open(fname);
+    ofs << "mtllib " << mtl_path.filename().c_str() << "\n";
     ofs << std::fixed << std::setprecision(precision);
     for (auto &v : vertex_vec)
     {
@@ -133,10 +187,11 @@ void VecOBJWriterNode::process()
     {
       if(!triangles.get_data_vec()[j].has_value()) continue;
       ofs << "o " << j << "\n";
-      auto& mtcs = triangles.get<MultiTriangleCollection>(j);
+      auto mtcs = triangles.get<MultiTriangleCollection>(j);
       for(size_t i=0; i<mtcs.tri_size(); i++) {
           const auto& tc = mtcs.tri_at(i);
-        write_triangles(tc, ofs, vertex_map);
+          const auto& am = mtcs.attr_at(i)["labels"];
+        write_triangles(tc, am, ofs, vertex_map);
       }
     }
     ofs.close();
