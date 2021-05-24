@@ -116,6 +116,16 @@ void write_triangles(const TriangleCollection& tc, const std::vector<attribute_v
 void VecOBJWriterNode::process()
 {
   auto &triangles = vector_input("triangles");
+
+  const gfSingleFeatureOutputTerminal* id_term;
+  auto id_attr_name = manager.substitute_globals(attribute_name);
+  bool use_id_from_attribute = false;
+  for (auto& term : poly_input("attributes").sub_terminals()) {
+    if ( term->get_name() == id_attr_name && term->accepts_type(typeid(std::string)) ) {
+      id_term = term;
+      use_id_from_attribute = true;
+    }
+  }
   
   std::map<arr3f, size_t> vertex_map;
   std::vector<arr3f> vertex_vec;
@@ -186,7 +196,11 @@ void VecOBJWriterNode::process()
     for (size_t j = 0; j < triangles.size(); ++j)
     {
       if(!triangles.get_data_vec()[j].has_value()) continue;
-      ofs << "o " << j << "\n";
+      if (use_id_from_attribute) {
+        ofs << "o " << id_term->get<const std::string>(j) << "\n";
+      } else {
+        ofs << "o " << j << "\n";
+      }
       auto mtcs = triangles.get<MultiTriangleCollection>(j);
       for(size_t i=0; i<mtcs.tri_size(); i++) {
           const auto& tc = mtcs.tri_at(i);

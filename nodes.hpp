@@ -44,6 +44,7 @@ class VecOBJWriterNode : public Node
 {
   int precision=5;
   std::string filepath;
+  std::string attribute_name = "identificatie";
   bool no_offset = false;
 
 public:
@@ -51,10 +52,12 @@ public:
   void init()
   {
     add_vector_input("triangles", {typeid(TriangleCollection), typeid(MultiTriangleCollection)});
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
 
     add_param(ParamPath(filepath, "filepath", "File path"));
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
     add_param(ParamInt(precision, "precision", "precision"));
+    add_param(ParamString(attribute_name, "attribute_name", "attribute to use as identifier for obj objects. Has to be a string attribute."));
   }
   void process();
 };
