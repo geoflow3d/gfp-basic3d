@@ -166,7 +166,6 @@ namespace geoflow::nodes::basic3d
     auto& multisolids_lod13 = vector_input("geometry_lod13");
     auto& multisolids_lod22 = vector_input("geometry_lod22");
     for (size_t i=0; i<multisolids_lod22.size(); ++i) {
-
       auto building = nlohmann::json::object();
       auto b_id = std::to_string(++id_cntr);
       building["type"] = "Building";
@@ -229,46 +228,49 @@ namespace geoflow::nodes::basic3d
 
       std::vector<std::string> buildingPartIds;
 
-      // geometries
-      const auto& solids_lod12 = multisolids_lod12.get<std::unordered_map<int, Mesh>>(i);
-      const auto& solids_lod13 = multisolids_lod13.get<std::unordered_map<int, Mesh>>(i);
+      bool has_solids = multisolids_lod22.get_data_vec()[i].has_value();
+      if (has_solids) {
+        // geometries
+        const auto& solids_lod12 = multisolids_lod12.get<std::unordered_map<int, Mesh>>(i);
+        const auto& solids_lod13 = multisolids_lod13.get<std::unordered_map<int, Mesh>>(i);
 
-      for ( const auto& [sid, solid_lod22] : multisolids_lod22.get<std::unordered_map<int, Mesh>>(i) ) {
-        auto buildingPart = nlohmann::json::object();
-        auto bp_id = b_id + "-" + std::to_string(sid);
-        
-        buildingPartIds.push_back(bp_id);
-        buildingPart["type"] = "BuildingPart";
-        buildingPart["parents"] = {b_id};
+        for ( const auto& [sid, solid_lod22] : multisolids_lod22.get<std::unordered_map<int, Mesh>>(i) ) {
+          auto buildingPart = nlohmann::json::object();
+          auto bp_id = b_id + "-" + std::to_string(sid);
+          
+          buildingPartIds.push_back(bp_id);
+          buildingPart["type"] = "BuildingPart";
+          buildingPart["parents"] = {b_id};
 
-        
-        add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod12.at(sid));
-        add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod13.at(sid));
-        add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solid_lod22);
-        
-        buildingPart["geometry"].push_back(mesh2jSolid(solids_lod12.at(sid), "1.2", vertex_map));
-        buildingPart["geometry"].push_back(mesh2jSolid(solids_lod13.at(sid), "1.3", vertex_map));
-        buildingPart["geometry"].push_back(mesh2jSolid(solid_lod22, "2.2", vertex_map));
+          
+          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod12.at(sid));
+          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod13.at(sid));
+          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solid_lod22);
+          
+          buildingPart["geometry"].push_back(mesh2jSolid(solids_lod12.at(sid), "1.2", vertex_map));
+          buildingPart["geometry"].push_back(mesh2jSolid(solids_lod13.at(sid), "1.3", vertex_map));
+          buildingPart["geometry"].push_back(mesh2jSolid(solid_lod22, "2.2", vertex_map));
 
-        //attrubutes
-        auto jattributes = nlohmann::json::object();
-        for (auto& term : poly_input("part_attributes").sub_terminals()) {
-          if (!term->get_data_vec()[i].has_value()) continue;
-          auto tname = term->get_name();
-          if (term->accepts_type(typeid(bool))) {
-            jattributes[tname] = term->get<const bool&>(bp_counter);
-          } else if (term->accepts_type(typeid(float))) {
-            jattributes[tname] = term->get<const float&>(bp_counter);
-          } else if (term->accepts_type(typeid(int))) {
-            jattributes[tname] = term->get<const int&>(bp_counter);
-          } else if (term->accepts_type(typeid(std::string))) {
-            jattributes[tname] = term->get<const std::string&>(bp_counter);
+          //attrubutes
+          auto jattributes = nlohmann::json::object();
+          for (auto& term : poly_input("part_attributes").sub_terminals()) {
+            if (!term->get_data_vec()[i].has_value()) continue;
+            auto tname = term->get_name();
+            if (term->accepts_type(typeid(bool))) {
+              jattributes[tname] = term->get<const bool&>(bp_counter);
+            } else if (term->accepts_type(typeid(float))) {
+              jattributes[tname] = term->get<const float&>(bp_counter);
+            } else if (term->accepts_type(typeid(int))) {
+              jattributes[tname] = term->get<const int&>(bp_counter);
+            } else if (term->accepts_type(typeid(std::string))) {
+              jattributes[tname] = term->get<const std::string&>(bp_counter);
+            }
           }
-        }
-        ++bp_counter;
-        buildingPart["attributes"] = jattributes;
+          ++bp_counter;
+          buildingPart["attributes"] = jattributes;
 
-        outputJSON["CityObjects"][bp_id] = buildingPart;
+          outputJSON["CityObjects"][bp_id] = buildingPart;
+        }
       }
 
       building["children"] = buildingPartIds;
