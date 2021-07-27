@@ -1,7 +1,7 @@
 
 #include "nodes.hpp"
 #include <filesystem>
-#include <nlohmann/json.hpp>
+#include <geoflow/nlohmann/json.hpp>
 
 namespace fs = std::filesystem;
 
