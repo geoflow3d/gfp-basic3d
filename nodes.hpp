@@ -46,6 +46,7 @@ class VecOBJWriterNode : public Node
 {
   int precision=5;
   std::string filepath;
+  std::string headerline_;
   std::string attribute_name = "identificatie";
   bool no_offset = false;
 
@@ -60,6 +61,7 @@ public:
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
     add_param(ParamInt(precision, "precision", "precision"));
     add_param(ParamString(attribute_name, "attribute_name", "attribute to use as identifier for obj objects. Has to be a string attribute."));
+    add_param(ParamString(headerline_, "Headerline", "add this string as a comment in the header of the OBJ file"));
   }
   void process();
 };

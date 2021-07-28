@@ -184,6 +184,8 @@ void VecOBJWriterNode::process()
     
     std::ofstream ofs;
     ofs.open(fname);
+    ofs << "# Created by Geoflow\n";
+    ofs << "# " << manager.substitute_globals(headerline_) << "\n";
     ofs << "mtllib " << mtl_path.filename().c_str() << "\n";
     ofs << std::fixed << std::setprecision(precision);
     for (auto &v : vertex_vec)
