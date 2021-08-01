@@ -128,12 +128,22 @@ namespace geoflow::nodes::basic3d
     surfaces.push_back(nlohmann::json::object({{
       "type", "RoofSurface"
     }}));
-    surfaces.push_back(nlohmann::json::object({{
-      "type", "+WallSurface_Outer"
-    }}));
-    surfaces.push_back(nlohmann::json::object({{
-      "type", "+WallSurface_Inner"
-    }}));
+    surfaces.push_back(nlohmann::json::object({
+      {
+        "type", "WallSurface"
+      }, 
+      {
+        "on_footprint_edge", true
+      }
+    }));
+    surfaces.push_back(nlohmann::json::object({
+      {
+        "type", "WallSurface"
+      }, 
+      {
+        "on_footprint_edge", false
+      }
+    }));
     geometry["semantics"] = {
       {"surfaces", surfaces},
       {"values", {mesh.get_labels()}}
