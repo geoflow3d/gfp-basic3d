@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <fstream>
-#include <ctime>
 #include <iomanip>
 
 #include <geoflow/geoflow.hpp>
@@ -117,13 +116,7 @@ class CityJSONWriterNode : public Node {
     add_poly_input("part_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
     add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
 
-    // find current date
-    auto t = std::time(nullptr);
-    auto tm = *std::localtime(&t);
 
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%d");
-    datasetReferenceDate_ = oss.str();
 
     // declare parameters
     add_param(ParamPath(filepath_, "filepath", "File path"));
@@ -131,7 +124,7 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(referenceSystem_, "referenceSystem", "referenceSystem"));
     add_param(ParamString(citymodelIdentifier_, "citymodelIdentifier", "citymodelIdentifier"));
     add_param(ParamString(datasetTitle_, "datasetTitle", "datasetTitle"));
-    add_param(ParamString(datasetReferenceDate_, "datasetReferenceDate", "datasetReferenceDate"));
+    // add_param(ParamString(datasetReferenceDate_, "datasetReferenceDate", "datasetReferenceDate"));
     add_param(ParamString(geographicLocation_, "geographicLocation", "geographicLocation"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamBool(version_1_0_, "version_1_0", "Output CityJSON v1.0 instead of v1.1"));
