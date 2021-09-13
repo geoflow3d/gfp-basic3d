@@ -54,7 +54,7 @@ public:
   void init()
   {
     add_vector_input("triangles", {typeid(TriangleCollection), typeid(MultiTriangleCollection)});
-    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
     add_param(ParamPath(filepath, "filepath", "File path"));
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
@@ -113,8 +113,8 @@ class CityJSONWriterNode : public Node {
     add_vector_input("geometry_lod12", typeid(std::unordered_map<int, Mesh>));
     add_vector_input("geometry_lod13", typeid(std::unordered_map<int, Mesh>));
     add_vector_input("geometry_lod22", typeid(std::unordered_map<int, Mesh>));
-    add_poly_input("part_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
-    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string)});
+    add_poly_input("part_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
 
 
