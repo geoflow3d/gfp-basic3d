@@ -206,32 +206,10 @@ namespace geoflow::nodes::basic3d
             b_id = std::to_string(term->get<const float&>(i));
           }
         } else if (term->accepts_type(typeid(int))) {
-          if (tname == "dak_type") {
-            auto dtype = term->get<const int&>(i);
-            std::string dtype_str;
-            switch (dtype) {
-              case 2:
-                dtype_str = "slanted";
-                break;
-              case 1:
-                dtype_str = "multiple horizontal";
-                break;
-              case 0:
-                dtype_str = "single horizontal";
-                break;
-              case -1:
-                dtype_str = "no points";
-                break;
-              case -2:
-                dtype_str = "could not detect";
-            }
-            jattributes[tname] = dtype_str;
-          } else {
-            jattributes[tname] = term->get<const int&>(i);
-            if (tname == identifier_attribute) {
-              b_id = std::to_string(term->get<const int&>(i));
-              id_from_attr = true;
-            }
+          jattributes[tname] = term->get<const int&>(i);
+          if (tname == identifier_attribute) {
+            b_id = std::to_string(term->get<const int&>(i));
+            id_from_attr = true;
           }
         } else if (term->accepts_type(typeid(std::string))) {
           jattributes[tname] = term->get<const std::string&>(i);
