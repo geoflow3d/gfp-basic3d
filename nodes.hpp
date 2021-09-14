@@ -97,6 +97,15 @@ class CityJSONWriterNode : public Node {
   std::string datasetTitle_ = "3D BAG development";
   std::string datasetReferenceDate_ = "1970-01-01";
   std::string geographicLocation_ = "The Netherlands";
+  std::string metadataStandard_;
+  std::string metadataStandardVersion_;
+  // metadata.datasetPointOfContact
+  std::string poc_contactName_;
+  std::string poc_phone_;
+  std::string poc_address_;
+  std::string poc_email_;
+  std::string poc_type_;
+  std::string poc_website_;
 
   bool prettyPrint_ = false;
   bool version_1_0_ = true;
@@ -124,6 +133,14 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(referenceSystem_, "referenceSystem", "referenceSystem"));
     add_param(ParamString(citymodelIdentifier_, "citymodelIdentifier", "citymodelIdentifier"));
     add_param(ParamString(datasetTitle_, "datasetTitle", "datasetTitle"));
+    add_param(ParamString(metadataStandard_, "metadataStandard", "metadataStandard"));
+    add_param(ParamString(metadataStandardVersion_, "metadataStandardVersion", "metadataStandardVersion"));
+    add_param(ParamString(poc_contactName_, "poc_contactName", "datasetPointOfContact.contactName"));
+    add_param(ParamString(poc_phone_, "poc_phone", "datasetPointOfContact.phone"));
+    add_param(ParamString(poc_address_, "poc_address", "datasetPointOfContact.address"));
+    add_param(ParamString(poc_email_, "poc_emailAddress", "datasetPointOfContact.emailAddress"));
+    add_param(ParamString(poc_type_, "poc_contactType", "datasetPointOfContact.contactType"));
+    add_param(ParamString(poc_website_, "poc_website", "datasetPointOfContact.website"));
     // add_param(ParamString(datasetReferenceDate_, "datasetReferenceDate", "datasetReferenceDate"));
     add_param(ParamString(geographicLocation_, "geographicLocation", "geographicLocation"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));

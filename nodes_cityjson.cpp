@@ -339,6 +339,8 @@ namespace geoflow::nodes::basic3d
     metadata["citymodelIdentifier"] = manager.substitute_globals(citymodelIdentifier_);
     metadata["datasetTitle"] = manager.substitute_globals(datasetTitle_);
     metadata["geographicLocation"] = manager.substitute_globals(geographicLocation_);
+    if (std::string val = manager.substitute_globals(metadataStandard_); !val.empty()) metadata["metadataStandard"] = val;
+    if (std::string val = manager.substitute_globals(metadataStandardVersion_); !val.empty()) metadata["metadataStandardVersion"] = val;
     // "metadata":{"geographicalExtent":[84372.90299658204,446339.80099951173,-1.6206239461898804,85051.81354956055,447006.0341881409,35.51251220703125],"citymodelIdentifier":"6118726d-ed69-4c62-8eb6-0b39f3a8623e","datasetReferenceDate":"2021-03-04","datasetCharacterSet":"UTF-8","datasetTopicCategory":"geoscientificInformation","distributionFormatVersion":"1.0","spatialRepresentationType":"vector","metadataStandard":"ISO 19115 - Geographic Information - Metadata","metadataStandardVersion":"ISO 19115:2014(E)","metadataCharacterSet":"UTF-8","metadataDateStamp":"2021-03-04","textures":"absent","materials":"absent","cityfeatureMetadata":{"Building":{"uniqueFeatureCount":1304,"aggregateFeatureCount":3912,"presentLoDs":{"1.2":1304,"1.3":1304,"2.2":1304}}},"presentLoDs":{"1.2":1304,"1.3":1304,"2.2":1304},"thematicModels":["Building"],"referenceSystem":"urn:ogc:def:crs:EPSG::7415","fileIdentifier":"5907.json"}
 
     // find current date
@@ -349,6 +351,17 @@ namespace geoflow::nodes::basic3d
     oss << std::put_time(&tm, "%Y-%m-%d");
     datasetReferenceDate_ = oss.str();
     metadata["datasetReferenceDate"] = manager.substitute_globals(datasetReferenceDate_);
+
+    // metadata.datasetPointOfContact - only add it if at least one of the parameters is filled
+    auto contact = nlohmann::json::object();
+    bool poc_allempty = true;
+    if (std::string val = manager.substitute_globals(poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
+    if (!poc_allempty) { metadata["datasetPointOfContact"] = contact; }
 
     outputJSON["metadata"] = metadata;
 
