@@ -41,6 +41,26 @@ public:
   void process();
 };
 
+class PLYWriterNode : public Node
+{
+  std::string filepath;
+  bool no_offset = false;
+  bool write_ascii = false;
+
+public:
+  using Node::Node;
+  void init()
+  {
+    add_input("geometries", typeid(PointCollection));
+    add_poly_input("attributes", {typeid(float)});
+
+    add_param(ParamPath(filepath, "filepath", "File path"));
+    add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
+    add_param(ParamBool(write_ascii, "write_ascii", "Output as ascii file instead of binary"));
+  }
+  void process();
+};
+
 class VecOBJWriterNode : public Node
 {
   int precision=5;
