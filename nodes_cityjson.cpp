@@ -173,10 +173,24 @@ namespace geoflow::nodes::basic3d
     size_t bp_counter = 0;
     std::string identifier_attribute = manager.substitute_globals(identifier_attribute_);
 
-    auto& multisolids_lod12 = vector_input("geometry_lod12");
+    // we expect at least one of the geomtry inputs is set
+    auto& multisolids_lod12 = vector_input("geometry_lod12");    
     auto& multisolids_lod13 = vector_input("geometry_lod13");
     auto& multisolids_lod22 = vector_input("geometry_lod22");
-    for (size_t i=0; i<multisolids_lod22.size(); ++i) {
+    bool export_lod12 = multisolids_lod12.has_data();
+    bool export_lod13 = multisolids_lod13.has_data();
+    bool export_lod22 = multisolids_lod22.has_data();
+    size_t geometry_count = 0;
+    if (export_lod12)
+      geometry_count = multisolids_lod12.size();
+    else if (export_lod13)
+      geometry_count = multisolids_lod13.size();
+    else if (export_lod22)
+      geometry_count = multisolids_lod22.size();
+    
+    typedef std::unordered_map<int, Mesh> MeshMap;
+
+    for (size_t i=0; i<geometry_count; ++i) {
       auto building = nlohmann::json::object();
       auto b_id = std::to_string(++id_cntr);
       building["type"] = "Building";
@@ -239,13 +253,21 @@ namespace geoflow::nodes::basic3d
 
       std::vector<std::string> buildingPartIds;
 
-      bool has_solids = multisolids_lod22.get_data_vec()[i].has_value();
+      bool has_solids = false;
+      if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
+      if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
+      if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
+      
       if (has_solids) {
-        // geometries
-        const auto& solids_lod12 = multisolids_lod12.get<std::unordered_map<int, Mesh>>(i);
-        const auto& solids_lod13 = multisolids_lod13.get<std::unordered_map<int, Mesh>>(i);
+        MeshMap meshmap;
+        if (export_lod12)
+          meshmap = multisolids_lod12.get<MeshMap>(i);
+        else if (export_lod13)
+          meshmap = multisolids_lod13.get<MeshMap>(i);
+        else if (export_lod22)
+          meshmap = multisolids_lod22.get<MeshMap>(i);
 
-        for ( const auto& [sid, solid_lod22] : multisolids_lod22.get<std::unordered_map<int, Mesh>>(i) ) {
+        for ( const auto& [sid, solid_lodx] : meshmap ) {
           auto buildingPart = nlohmann::json::object();
           auto bp_id = b_id + "-" + std::to_string(sid);
           
@@ -253,14 +275,18 @@ namespace geoflow::nodes::basic3d
           buildingPart["type"] = "BuildingPart";
           buildingPart["parents"] = {b_id};
 
-          
-          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod12.at(sid));
-          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solids_lod13.at(sid));
-          add_vertices_mesh(vertex_map, vertex_vec, vertex_set, solid_lod22);
-          
-          buildingPart["geometry"].push_back(mesh2jSolid(solids_lod12.at(sid), "1.2", vertex_map));
-          buildingPart["geometry"].push_back(mesh2jSolid(solids_lod13.at(sid), "1.3", vertex_map));
-          buildingPart["geometry"].push_back(mesh2jSolid(solid_lod22, "2.2", vertex_map));
+          if (export_lod12) {
+             add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid));
+             buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map));
+          } 
+          if (export_lod13) {
+            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid));
+            buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map));
+          } 
+          if (export_lod22) {
+            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid));
+            buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map));
+          }
 
           //attrubutes
           auto jattributes = nlohmann::json::object();

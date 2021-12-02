@@ -168,7 +168,7 @@ class CityJSONWriterNode : public Node {
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
   }
 
-  void on_receive(gfMultiFeatureInputTerminal& it) {
+  void on_receive(gfMultiFeatureInputTerminal& it) override {
     key_options.clear();
     if(&it == &poly_input("attributes")) {
       for(auto sub_term : it.sub_terminals()) {
@@ -178,14 +178,22 @@ class CityJSONWriterNode : public Node {
   };
 
   bool inputs_valid() override {
-    return 
-      input("footprints").has_data() &&
-      input("geometry_lod12").has_data() &&
-      input("geometry_lod13").has_data() &&
-      input("geometry_lod22").has_data() &&
-      poly_input("attributes").has_data()
-      ;
-    
+    bool has_connection = input("geometry_lod12").has_connection() ||
+                          input("geometry_lod13").has_connection() ||
+                          input("geometry_lod22").has_connection();
+
+    bool has_connection_without_data = false;
+    if (input("geometry_lod12").has_connection() && !input("geometry_lod12").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    } 
+    if (input("geometry_lod13").has_connection() && !input("geometry_lod13").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    } 
+    if (input("geometry_lod22").has_connection() && !input("geometry_lod22").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    } 
+
+    return input("footprints").has_data() && poly_input("attributes").has_data() && !has_connection_without_data && has_connection;
   }
   std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
   nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
