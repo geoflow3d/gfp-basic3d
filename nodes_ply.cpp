@@ -39,9 +39,9 @@ void PLYWriterNode::process() {
   fs::create_directories(fname.parent_path());
 
   if(write_ascii) 
-    plyOut.write(fname, happly::DataFormat::ASCII);
+    plyOut.write(fname.string(), happly::DataFormat::ASCII);
   else 
-    plyOut.write(fname, happly::DataFormat::Binary);
+    plyOut.write(fname.string(), happly::DataFormat::Binary);
 
 }
 
