@@ -2,7 +2,7 @@
 #include "nodes.hpp"
 #include <filesystem>
 #include <ctime>
-#include <geoflow/nlohmann/json.hpp>
+#include <nlohmann/json.hpp>
 
 namespace fs = std::filesystem;
 
