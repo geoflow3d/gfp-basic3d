@@ -173,9 +173,12 @@ void VecOBJWriterNode::process()
       }
     }
     auto fname = manager.substitute_globals(filepath);
+    fname = substitute_from_term(fname, poly_input("attributes"));
     auto mtl_path = fs::path(fname+".mtl");
 
     fs::create_directories(mtl_path.parent_path());
+
+    std::cout << "writing to " << fname << std::endl;
     
     std::ofstream ofs_mtl;
     ofs_mtl.open(mtl_path.c_str());
