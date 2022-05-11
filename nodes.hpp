@@ -197,4 +197,78 @@ class CityJSONWriterNode : public Node {
   void process() override;
 };
 
+class CityJSONFeatureWriterNode : public Node {
+
+  // parameter variables
+  std::string filepath_;
+  std::string identifier_attribute_ = "";
+
+  bool prettyPrint_ = false;
+
+  vec1s key_options;
+  StrMap output_attribute_names;
+
+  float translate_x_;
+  float translate_y_;
+  float translate_z_;
+  float scale_x_;
+  float scale_y_;
+  float scale_z_;
+
+public:
+  using Node::Node;
+
+  void init() override {
+    // declare ouput terminals
+    add_vector_input("footprints", typeid(LinearRing));
+    add_vector_input("geometry_lod12", typeid(std::unordered_map<int, Mesh>));
+    add_vector_input("geometry_lod13", typeid(std::unordered_map<int, Mesh>));
+    add_vector_input("geometry_lod22", typeid(std::unordered_map<int, Mesh>));
+    add_poly_input("part_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+
+    // declare parameters
+    add_param(ParamPath(filepath_, "filepath", "File path"));
+    add_param(ParamString(identifier_attribute_, "identifier_attribute", "(Renamed) attribute to use for CityObject ID (leave empty for auto ID generation). Only works for int and string attributes."));
+    add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
+    add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
+    add_param(ParamFloat(translate_x_, "translate_x", "CityJSON transform.translate.x"));
+    add_param(ParamFloat(translate_y_, "translate_y", "CityJSON transform.translate.y"));
+    add_param(ParamFloat(translate_z_, "translate_z", "CityJSON transform.translate.z"));
+    add_param(ParamFloat(scale_x_, "scale_x", "CityJSON transform.scale.x"));
+    add_param(ParamFloat(scale_y_, "scale_y", "CityJSON transform.scale.y"));
+    add_param(ParamFloat(scale_z_, "scale_z", "CityJSON transform.scale.z"));
+  }
+
+  void on_receive(gfMultiFeatureInputTerminal& it) override {
+    key_options.clear();
+    if(&it == &poly_input("attributes")) {
+      for(auto sub_term : it.sub_terminals()) {
+        key_options.push_back(sub_term->get_name());
+      }
+    }
+  };
+
+  bool inputs_valid() override {
+    bool has_connection = input("geometry_lod12").has_connection() ||
+                          input("geometry_lod13").has_connection() ||
+                          input("geometry_lod22").has_connection();
+
+    bool has_connection_without_data = false;
+    if (input("geometry_lod12").has_connection() && !input("geometry_lod12").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    }
+    if (input("geometry_lod13").has_connection() && !input("geometry_lod13").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    }
+    if (input("geometry_lod22").has_connection() && !input("geometry_lod22").has_data()) {
+      has_connection_without_data = has_connection_without_data || true;
+    }
+
+    return input("footprints").has_data() && poly_input("attributes").has_data() && !has_connection_without_data && has_connection;
+  }
+
+  void process() override;
+};
+
 } // namespace geoflow::nodes::basic3d
