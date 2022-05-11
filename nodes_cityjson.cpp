@@ -109,11 +109,7 @@ namespace geoflow::nodes::basic3d
   nlohmann::json::object_t CityJSONWriterNode::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map) {
     auto geometry = nlohmann::json::object();
     geometry["type"] = "Solid";
-    if(version_1_0_) {
-      geometry["lod"] = atof(lod);
-    } else {
-      geometry["lod"] = lod;
-    };
+    geometry["lod"] = lod;
     std::vector<std::vector<std::vector<size_t>>> exterior_shell;
 
     for (auto &face : mesh.get_polygons())
@@ -159,11 +155,7 @@ namespace geoflow::nodes::basic3d
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSON";
-    if (version_1_0_) {
-      outputJSON["version"] = "1.0";
-    } else {
-      outputJSON["version"] = "1.1";
-    };
+    outputJSON["version"] = "1.1";
     outputJSON["CityObjects"] = nlohmann::json::object();
 
     std::map<arr3f, size_t> vertex_map;
@@ -238,11 +230,7 @@ namespace geoflow::nodes::basic3d
       
       // footprint geometry
       auto fp_geometry = nlohmann::json::object();
-      if (version_1_0_) { 
-        fp_geometry["lod"] = 0;
-      } else {
-        fp_geometry["lod"] = "0";
-      }
+      fp_geometry["lod"] = "0";
       fp_geometry["type"] = "MultiSurface";
 
       auto& footprint = footprints.get<LinearRing>(i);
