@@ -89,7 +89,7 @@ namespace geoflow::nodes::basic3d
     }
   }
 
-  std::vector<std::vector<size_t>> CityJSONWriterNode::LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face) {
+  std::vector<std::vector<size_t>> CityJSON::LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face) {
     std::vector<std::vector<size_t>> jface;
     std::vector<size_t> exterior_ring;
     for (auto &vertex : face) {
@@ -106,7 +106,7 @@ namespace geoflow::nodes::basic3d
     return jface;
   }
 
-  nlohmann::json::object_t CityJSONWriterNode::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map) {
+  nlohmann::json::object_t CityJSON::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map) {
     auto geometry = nlohmann::json::object();
     geometry["type"] = "Solid";
     geometry["lod"] = lod;
@@ -128,7 +128,7 @@ namespace geoflow::nodes::basic3d
     surfaces.push_back(nlohmann::json::object({
       {
         "type", "WallSurface"
-      }, 
+      },
       {
         "on_footprint_edge", true
       }
@@ -136,7 +136,7 @@ namespace geoflow::nodes::basic3d
     surfaces.push_back(nlohmann::json::object({
       {
         "type", "WallSurface"
-      }, 
+      },
       {
         "on_footprint_edge", false
       }
@@ -166,7 +166,7 @@ namespace geoflow::nodes::basic3d
     std::string identifier_attribute = manager.substitute_globals(identifier_attribute_);
 
     // we expect at least one of the geomtry inputs is set
-    auto& multisolids_lod12 = vector_input("geometry_lod12");    
+    auto& multisolids_lod12 = vector_input("geometry_lod12");
     auto& multisolids_lod13 = vector_input("geometry_lod13");
     auto& multisolids_lod22 = vector_input("geometry_lod22");
     bool export_lod12 = multisolids_lod12.has_data();
@@ -179,7 +179,7 @@ namespace geoflow::nodes::basic3d
       geometry_count = multisolids_lod13.size();
     else if (export_lod22)
       geometry_count = multisolids_lod22.size();
-    
+
     typedef std::unordered_map<int, Mesh> MeshMap;
 
     for (size_t i=0; i<geometry_count; ++i) {
@@ -195,7 +195,7 @@ namespace geoflow::nodes::basic3d
       for (auto& term : poly_input("attributes").sub_terminals()) {
         if (!term->get_data_vec()[i].has_value()) continue;
         auto tname = term->get_name();
-        
+
         //see if we need to rename this attribute
         auto search = output_attribute_names.find(tname);
         if(search != output_attribute_names.end()) {
@@ -227,7 +227,7 @@ namespace geoflow::nodes::basic3d
       }
 
       building["attributes"] = jattributes;
-      
+
       // footprint geometry
       auto fp_geometry = nlohmann::json::object();
       fp_geometry["lod"] = "0";
@@ -235,7 +235,7 @@ namespace geoflow::nodes::basic3d
 
       auto& footprint = footprints.get<LinearRing>(i);
       add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
-      fp_geometry["boundaries"] = {LinearRing2jboundary(vertex_map, footprint)};
+      fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
       building["geometry"].push_back(fp_geometry);
       // building["geometry"] = nlohmann::json::array();
 
@@ -245,7 +245,7 @@ namespace geoflow::nodes::basic3d
       if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
       if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
       if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
-      
+
       if (has_solids) {
         MeshMap meshmap;
         if (export_lod12)
@@ -258,22 +258,22 @@ namespace geoflow::nodes::basic3d
         for ( const auto& [sid, solid_lodx] : meshmap ) {
           auto buildingPart = nlohmann::json::object();
           auto bp_id = b_id + "-" + std::to_string(sid);
-          
+
           buildingPartIds.push_back(bp_id);
           buildingPart["type"] = "BuildingPart";
           buildingPart["parents"] = {b_id};
 
           if (export_lod12) {
              add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid));
-             buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map));
-          } 
+             buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map));
+          }
           if (export_lod13) {
             add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map));
-          } 
+            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map));
+          }
           if (export_lod22) {
             add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map));
+            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map));
           }
 
           //attrubutes
@@ -289,7 +289,7 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = term->get<const int&>(bp_counter);
             } else if (term->accepts_type(typeid(std::string))) {
               jattributes[tname] = term->get<const std::string&>(bp_counter);
-            
+
             // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
             } else if (term->accepts_type(typeid(Date))) {
               auto t = term->get<const Date&>(bp_counter);
@@ -301,8 +301,8 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = time;
             } else if (term->accepts_type(typeid(DateTime))) {
               auto t = term->get<const DateTime&>(bp_counter);
-              std::string datetime = 
-                std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T" 
+              std::string datetime =
+                std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
                 + std::to_string(t.time.hour) + "-" + std::to_string(t.time.minute) + "-" + std::to_string(t.time.second);
               jattributes[tname] = datetime;
             }
@@ -324,7 +324,7 @@ namespace geoflow::nodes::basic3d
     // auto center = bbox.center();
     std::vector<std::array<int,3>>vertices_int;
     for (auto& vertex : vertex_vec) {
-      vertices_int.push_back({ 
+      vertices_int.push_back({
         int( vertex[0] * 1000 ),
         int( vertex[1] * 1000 ),
         int( vertex[2] * 1000 )

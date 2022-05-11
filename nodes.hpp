@@ -107,6 +107,14 @@ class CityJSONReaderNode : public Node {
   void process() override;
 };
 
+// Helper functions for processing CityJSON data
+class CityJSON : public Node {
+
+  public:
+    static std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
+    static nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
+};
+
 class CityJSONWriterNode : public Node {
 
   // parameter variables
@@ -139,8 +147,6 @@ class CityJSONWriterNode : public Node {
     add_vector_input("geometry_lod22", typeid(std::unordered_map<int, Mesh>));
     add_poly_input("part_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
     add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
-
-
 
     // declare parameters
     add_param(ParamPath(filepath_, "filepath", "File path"));
@@ -187,8 +193,6 @@ class CityJSONWriterNode : public Node {
 
     return input("footprints").has_data() && poly_input("attributes").has_data() && !has_connection_without_data && has_connection;
   }
-  std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
-  nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
 
   void process() override;
 };
