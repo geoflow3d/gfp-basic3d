@@ -128,7 +128,6 @@ class CityJSONWriterNode : public Node {
   std::string poc_website_;
 
   bool prettyPrint_ = false;
-  bool version_1_0_ = true;
 
   vec1s key_options;
   StrMap output_attribute_names;
@@ -164,7 +163,6 @@ class CityJSONWriterNode : public Node {
     // add_param(ParamString(datasetReferenceDate_, "datasetReferenceDate", "datasetReferenceDate"));
     add_param(ParamString(geographicLocation_, "geographicLocation", "geographicLocation"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
-    add_param(ParamBool(version_1_0_, "version_1_0", "Output CityJSON v1.0 instead of v1.1"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
   }
 
