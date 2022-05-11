@@ -112,20 +112,16 @@ class CityJSONWriterNode : public Node {
   // parameter variables
   std::string filepath_;
   std::string identifier_attribute_ = "";
-  std::string referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
-  std::string citymodelIdentifier_ = "42";
-  std::string datasetTitle_ = "3D BAG development";
-  std::string datasetReferenceDate_ = "1970-01-01";
-  std::string geographicLocation_ = "The Netherlands";
-  std::string metadataStandard_;
-  std::string metadataStandardVersion_;
-  // metadata.datasetPointOfContact
-  std::string poc_contactName_;
-  std::string poc_phone_;
-  std::string poc_address_;
-  std::string poc_email_;
-  std::string poc_type_;
-  std::string poc_website_;
+  std::string meta_referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
+  std::string meta_identifier_      = "42";
+  std::string meta_title_           = "3D BAG development";
+  std::string meta_referenceDate_   = "1970-01-01";
+  std::string meta_poc_contactName_;
+  std::string meta_poc_phone_;
+  std::string meta_poc_address_;
+  std::string meta_poc_email_;
+  std::string meta_poc_type_;
+  std::string meta_poc_website_;
 
   bool prettyPrint_ = false;
 
@@ -134,7 +130,7 @@ class CityJSONWriterNode : public Node {
 
   public:
   using Node::Node;
-  
+
   void init() override {
     // declare ouput terminals
     add_vector_input("footprints", typeid(LinearRing));
@@ -149,19 +145,17 @@ class CityJSONWriterNode : public Node {
     // declare parameters
     add_param(ParamPath(filepath_, "filepath", "File path"));
     add_param(ParamString(identifier_attribute_, "identifier_attribute", "(Renamed) attribute to use for CityObject ID (leave empty for auto ID generation). Only works for int and string attributes."));
-    add_param(ParamString(referenceSystem_, "referenceSystem", "referenceSystem"));
-    add_param(ParamString(citymodelIdentifier_, "citymodelIdentifier", "citymodelIdentifier"));
-    add_param(ParamString(datasetTitle_, "datasetTitle", "datasetTitle"));
-    add_param(ParamString(metadataStandard_, "metadataStandard", "metadataStandard"));
-    add_param(ParamString(metadataStandardVersion_, "metadataStandardVersion", "metadataStandardVersion"));
-    add_param(ParamString(poc_contactName_, "poc_contactName", "datasetPointOfContact.contactName"));
-    add_param(ParamString(poc_phone_, "poc_phone", "datasetPointOfContact.phone"));
-    add_param(ParamString(poc_address_, "poc_address", "datasetPointOfContact.address"));
-    add_param(ParamString(poc_email_, "poc_emailAddress", "datasetPointOfContact.emailAddress"));
-    add_param(ParamString(poc_type_, "poc_contactType", "datasetPointOfContact.contactType"));
-    add_param(ParamString(poc_website_, "poc_website", "datasetPointOfContact.website"));
-    // add_param(ParamString(datasetReferenceDate_, "datasetReferenceDate", "datasetReferenceDate"));
-    add_param(ParamString(geographicLocation_, "geographicLocation", "geographicLocation"));
+    add_param(ParamString(meta_identifier_, "meta_identifier", "Metadata: identifier"));
+    add_param(ParamString(meta_poc_contactName_, "meta_poc_contactName", "Metadata: pointOfContact.contactName"));
+    add_param(ParamString(
+      meta_poc_phone_, "meta_poc_phone", "Metadata: pointOfContact.phone"));
+    add_param(ParamString(meta_poc_address_, "meta_poc_address", "Metadata: pointOfContact.address"));
+    add_param(ParamString(meta_poc_email_, "meta_poc_emailAddress", "Metadata: pointOfContact.emailAddress"));
+    add_param(ParamString(meta_poc_type_, "meta_poc_contactType", "Metadata: pointOfContact.contactType"));
+    add_param(ParamString(meta_poc_website_, "meta_poc_website", "Metadata: pointOfContact.website"));
+    add_param(ParamString(meta_referenceDate_, "meta_referenceDate", "Metadata: referenceDate"));
+    add_param(ParamString(meta_referenceSystem_, "meta_referenceSystem", "Metadata: referenceSystem"));
+    add_param(ParamString(meta_title_, "meta_title", "Metadata: title"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
   }
