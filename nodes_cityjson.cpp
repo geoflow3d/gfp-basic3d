@@ -574,9 +574,9 @@ namespace geoflow::nodes::basic3d
     double _offset_z = doffset_[2] + translate_z_;
     for (auto& vertex : vertex_vec) {
       vertices_int.push_back({
-        int( vertex[0] + _offset_x / scale_x_ ),
-        int( vertex[1] + _offset_y / scale_y_ ),
-        int( vertex[2] + _offset_z / scale_z_ )
+        int( (vertex[0] / scale_x_) + _offset_x ),
+        int( (vertex[1] / scale_y_) + _offset_y ),
+        int( (vertex[2] / scale_z_) + _offset_z )
       });
     }
     outputJSON["vertices"] = vertices_int;
