@@ -127,8 +127,10 @@ class CityJSON : public Node {
                                   json&                         outputJSON,
                                   std::vector<arr3f>&           vertex_vec,
                                   std::string&                  identifier_attribute,
-                                  StrMap&                       output_attribute_names);
+                                  StrMap&                       output_attribute_names,
+                                  std::array<double, 3>&        data_offset);
     static void write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_);
+    static nlohmann::json::array_t compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset);
 };
 
 class CityJSONWriterNode : public Node {

@@ -162,6 +162,20 @@ namespace geoflow::nodes::basic3d
     }
   }
 
+  // Computes the geographicalExtent array from a geoflow::Box and the data_offset from the NodeManager
+  nlohmann::json::array_t CityJSON::compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset) {
+    auto minp = bbox.min();
+    auto maxp = bbox.max();
+    return {
+      minp[0]+(data_offset)[0],
+      minp[1]+(data_offset)[1],
+      minp[2]+(data_offset)[2],
+      maxp[0]+(data_offset)[0],
+      maxp[1]+(data_offset)[1],
+      maxp[2]+(data_offset)[2]
+    };
+  }
+
   void CityJSON::write_cityobjects(
     gfSingleFeatureInputTerminal& footprints,
     gfSingleFeatureInputTerminal& multisolids_lod12,
@@ -172,7 +186,8 @@ namespace geoflow::nodes::basic3d
     json&                         outputJSON,
     std::vector<arr3f>&           vertex_vec,
     std::string&                  identifier_attribute,
-    StrMap&                       output_attribute_names)
+    StrMap&                       output_attribute_names,
+    std::array<double, 3>&        data_offset)
   {
     std::map<arr3f, size_t> vertex_map;
     std::set<arr3f> vertex_set;
@@ -242,18 +257,24 @@ namespace geoflow::nodes::basic3d
       fp_geometry["lod"] = "0";
       fp_geometry["type"] = "MultiSurface";
 
-      auto& footprint = footprints.get<LinearRing>(i);
+      LinearRing footprint = footprints.get<LinearRing>(i);
       add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
       fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
       building["geometry"].push_back(fp_geometry);
 
       std::vector<std::string> buildingPartIds;
+      Box bbox = footprint.box();
 
       bool has_solids = false;
       if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
       if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
       if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
 
+      // TODO: For now, the "geographicalExtent" of the CityObject is simply
+      //  computed from the bbox of the footprint, but that has 0 for the Z.
+      //  Ideally, we compute the bbox of the incoming Mesh of the 3D models,
+      //  and pick the one that is available (in case not all three LoD-s have
+      //  geometry. However, the Mesh class needs to implement box() too.
       if (has_solids) {
         MeshMap meshmap;
         if (export_lod12)
@@ -323,6 +344,7 @@ namespace geoflow::nodes::basic3d
       }
 
       building["children"] = buildingPartIds;
+      building["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, data_offset);
 
       outputJSON["CityObjects"][b_id] = building;
     }
@@ -355,7 +377,8 @@ namespace geoflow::nodes::basic3d
                                 outputJSON,
                                 vertex_vec,
                                 identifier_attribute,
-                                output_attribute_names);
+                                output_attribute_names,
+                                *manager.data_offset);
 
     Box bbox;
     bbox.add(vertex_vec);
@@ -376,16 +399,7 @@ namespace geoflow::nodes::basic3d
 
     // metadata
     auto metadata = nlohmann::json::object();
-    auto minp = bbox.min();
-    auto maxp = bbox.max();
-    metadata["geographicalExtent"] = {
-      minp[0]+(*manager.data_offset)[0],
-      minp[1]+(*manager.data_offset)[1],
-      minp[2]+(*manager.data_offset)[2],
-      maxp[0]+(*manager.data_offset)[0],
-      maxp[1]+(*manager.data_offset)[1],
-      maxp[2]+(*manager.data_offset)[2]
-    };
+    metadata["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, *manager.data_offset);
 
     metadata["identifier"] = manager.substitute_globals(meta_identifier_);
 
@@ -445,7 +459,8 @@ namespace geoflow::nodes::basic3d
                                 outputJSON,
                                 vertex_vec,
                                 identifier_attribute,
-                                output_attribute_names);
+                                output_attribute_names,
+                                *manager.data_offset);
 
     // The main Building is the parent object.
     // Bit of a hack. Ideally we would know exactly which ID we set,
@@ -457,9 +472,6 @@ namespace geoflow::nodes::basic3d
       }
     };
 
-    Box bbox;
-    bbox.add(vertex_vec);
-    // auto center = bbox.center();
     std::vector<std::array<int,3>>vertices_int;
     std::array<double, 3> doffset_ = {0.0, 0.0, 0.0};
     if (manager.data_offset.has_value()) doffset_ = manager.data_offset.value();
