@@ -109,11 +109,7 @@ namespace geoflow::nodes::basic3d
   nlohmann::json::object_t CityJSONWriterNode::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map) {
     auto geometry = nlohmann::json::object();
     geometry["type"] = "Solid";
-    if(version_1_0_) {
-      geometry["lod"] = atof(lod);
-    } else {
-      geometry["lod"] = lod;
-    };
+    geometry["lod"] = lod;
     std::vector<std::vector<std::vector<size_t>>> exterior_shell;
 
     for (auto &face : mesh.get_polygons())
@@ -159,11 +155,7 @@ namespace geoflow::nodes::basic3d
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSON";
-    if (version_1_0_) {
-      outputJSON["version"] = "1.0";
-    } else {
-      outputJSON["version"] = "1.1";
-    };
+    outputJSON["version"] = "1.1";
     outputJSON["CityObjects"] = nlohmann::json::object();
 
     std::map<arr3f, size_t> vertex_map;
@@ -238,11 +230,7 @@ namespace geoflow::nodes::basic3d
       
       // footprint geometry
       auto fp_geometry = nlohmann::json::object();
-      if (version_1_0_) { 
-        fp_geometry["lod"] = 0;
-      } else {
-        fp_geometry["lod"] = "0";
-      }
+      fp_geometry["lod"] = "0";
       fp_geometry["type"] = "MultiSurface";
 
       auto& footprint = footprints.get<LinearRing>(i);
@@ -361,33 +349,31 @@ namespace geoflow::nodes::basic3d
       maxp[2]+(*manager.data_offset)[2]
     };
 
-    metadata["referenceSystem"] = manager.substitute_globals(referenceSystem_);
-    metadata["citymodelIdentifier"] = manager.substitute_globals(citymodelIdentifier_);
-    metadata["datasetTitle"] = manager.substitute_globals(datasetTitle_);
-    metadata["geographicLocation"] = manager.substitute_globals(geographicLocation_);
-    if (std::string val = manager.substitute_globals(metadataStandard_); !val.empty()) metadata["metadataStandard"] = val;
-    if (std::string val = manager.substitute_globals(metadataStandardVersion_); !val.empty()) metadata["metadataStandardVersion"] = val;
-    // "metadata":{"geographicalExtent":[84372.90299658204,446339.80099951173,-1.6206239461898804,85051.81354956055,447006.0341881409,35.51251220703125],"citymodelIdentifier":"6118726d-ed69-4c62-8eb6-0b39f3a8623e","datasetReferenceDate":"2021-03-04","datasetCharacterSet":"UTF-8","datasetTopicCategory":"geoscientificInformation","distributionFormatVersion":"1.0","spatialRepresentationType":"vector","metadataStandard":"ISO 19115 - Geographic Information - Metadata","metadataStandardVersion":"ISO 19115:2014(E)","metadataCharacterSet":"UTF-8","metadataDateStamp":"2021-03-04","textures":"absent","materials":"absent","cityfeatureMetadata":{"Building":{"uniqueFeatureCount":1304,"aggregateFeatureCount":3912,"presentLoDs":{"1.2":1304,"1.3":1304,"2.2":1304}}},"presentLoDs":{"1.2":1304,"1.3":1304,"2.2":1304},"thematicModels":["Building"],"referenceSystem":"urn:ogc:def:crs:EPSG::7415","fileIdentifier":"5907.json"}
-
-    // find current date
-    auto t = std::time(nullptr);
-    auto tm = *std::localtime(&t);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%d");
-    datasetReferenceDate_ = oss.str();
-    metadata["datasetReferenceDate"] = manager.substitute_globals(datasetReferenceDate_);
+    metadata["identifier"] = manager.substitute_globals(meta_identifier_);
 
     // metadata.datasetPointOfContact - only add it if at least one of the parameters is filled
     auto contact = nlohmann::json::object();
     bool poc_allempty = true;
-    if (std::string val = manager.substitute_globals(poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
-    if (!poc_allempty) { metadata["datasetPointOfContact"] = contact; }
+    if (std::string val = manager.substitute_globals(meta_poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
+    if (!poc_allempty) { metadata["pointOfContact"] = contact; }
+
+    if (std::string val = manager.substitute_globals(meta_referenceDate_); !val.empty()) {
+      // find current date if none provided
+      auto t = std::time(nullptr);
+      auto tm = *std::localtime(&t);
+      std::ostringstream oss;
+      oss << std::put_time(&tm, "%Y-%m-%d");
+      meta_referenceDate_              = oss.str();
+    }
+    metadata["referenceDate"] = manager.substitute_globals(meta_referenceDate_);
+
+    metadata["referenceSystem"] = manager.substitute_globals(meta_referenceSystem_);
+    metadata["title"] = manager.substitute_globals(meta_title_);
 
     outputJSON["metadata"] = metadata;
 
