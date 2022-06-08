@@ -39,6 +39,12 @@ public:
     add_param(ParamInt(precision, "precision", "precision"));
   }
   void process();
+  bool parameters_valid() override {
+    if (manager.substitute_globals(filepath).empty()) 
+      return false;
+    else 
+      return true;
+  }
 };
 
 class PLYWriterNode : public Node
@@ -59,6 +65,12 @@ public:
     add_param(ParamBool(write_ascii, "write_ascii", "Output as ascii file instead of binary"));
   }
   void process();
+  bool parameters_valid() override {
+    if (manager.substitute_globals(filepath).empty()) 
+      return false;
+    else 
+      return true;
+  }
 };
 
 class VecOBJWriterNode : public Node
@@ -83,6 +95,12 @@ public:
     add_param(ParamString(headerline_, "Headerline", "add this string as a comment in the header of the OBJ file"));
   }
   void process();
+  bool parameters_valid() override {
+    if (manager.substitute_globals(filepath).empty()) 
+      return false;
+    else 
+      return true;
+  }
 };
 
 class CityJSONReaderNode : public Node {
@@ -174,7 +192,12 @@ class CityJSONWriterNode : public Node {
       }
     }
   };
-
+  bool parameters_valid() override {
+    if (manager.substitute_globals(filepath_).empty()) 
+      return false;
+    else 
+      return true;
+  }
   bool inputs_valid() override {
     bool has_connection = input("geometry_lod12").has_connection() ||
                           input("geometry_lod13").has_connection() ||
@@ -248,6 +271,13 @@ public:
       }
     }
   };
+
+  bool parameters_valid() override {
+    if (manager.substitute_globals(filepath_).empty()) 
+      return false;
+    else 
+      return true;
+  }
 
   bool inputs_valid() override {
     bool has_connection = input("geometry_lod12").has_connection() ||
