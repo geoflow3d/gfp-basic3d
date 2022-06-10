@@ -1,10 +1,7 @@
 
 #include "nodes.hpp"
-#include <filesystem>
 #include <ctime>
 #include <nlohmann/json.hpp>
-
-namespace fs = std::filesystem;
 
 namespace geoflow::nodes::basic3d
 {
@@ -148,238 +145,9 @@ namespace geoflow::nodes::basic3d
     return geometry;
   }
 
-  void CityJSONWriterNode::process() {
-    // inputs
-    auto& footprints = vector_input("footprints");
-
-    nlohmann::json outputJSON;
-
-    outputJSON["type"] = "CityJSON";
-    outputJSON["version"] = "1.1";
-    outputJSON["CityObjects"] = nlohmann::json::object();
-
-    std::map<arr3f, size_t> vertex_map;
-    std::vector<arr3f> vertex_vec;
-    std::set<arr3f> vertex_set;
-    size_t id_cntr = 0;
-    size_t bp_counter = 0;
-    std::string identifier_attribute = manager.substitute_globals(identifier_attribute_);
-
-    // we expect at least one of the geomtry inputs is set
-    auto& multisolids_lod12 = vector_input("geometry_lod12");
-    auto& multisolids_lod13 = vector_input("geometry_lod13");
-    auto& multisolids_lod22 = vector_input("geometry_lod22");
-    bool export_lod12 = multisolids_lod12.has_data();
-    bool export_lod13 = multisolids_lod13.has_data();
-    bool export_lod22 = multisolids_lod22.has_data();
-    size_t geometry_count = 0;
-    if (export_lod12)
-      geometry_count = multisolids_lod12.size();
-    else if (export_lod13)
-      geometry_count = multisolids_lod13.size();
-    else if (export_lod22)
-      geometry_count = multisolids_lod22.size();
-
-    typedef std::unordered_map<int, Mesh> MeshMap;
-
-    for (size_t i=0; i<geometry_count; ++i) {
-      auto building = nlohmann::json::object();
-      auto b_id = std::to_string(++id_cntr);
-      building["type"] = "Building";
-      // building["attributes"]
-      // building["children"]
-
-      // Building atributes
-      bool id_from_attr = false;
-      auto jattributes = nlohmann::json::object();
-      for (auto& term : poly_input("attributes").sub_terminals()) {
-        if (!term->get_data_vec()[i].has_value()) continue;
-        auto tname = term->get_name();
-
-        //see if we need to rename this attribute
-        auto search = output_attribute_names.find(tname);
-        if(search != output_attribute_names.end()) {
-          //ignore if the new name is an empty string
-          if(search->second.size()!=0)
-            tname = search->second;
-        }
-
-        if (term->accepts_type(typeid(bool))) {
-          jattributes[tname] = term->get<const bool&>(i);
-        } else if (term->accepts_type(typeid(float))) {
-          jattributes[tname] = term->get<const float&>(i);
-          if (tname == identifier_attribute) {
-            b_id = std::to_string(term->get<const float&>(i));
-          }
-        } else if (term->accepts_type(typeid(int))) {
-          jattributes[tname] = term->get<const int&>(i);
-          if (tname == identifier_attribute) {
-            b_id = std::to_string(term->get<const int&>(i));
-            id_from_attr = true;
-          }
-        } else if (term->accepts_type(typeid(std::string))) {
-          jattributes[tname] = term->get<const std::string&>(i);
-          if (tname == identifier_attribute) {
-            b_id = term->get<const std::string&>(i);
-            id_from_attr = true;
-          }
-        }
-      }
-
-      building["attributes"] = jattributes;
-
-      // footprint geometry
-      auto fp_geometry = nlohmann::json::object();
-      fp_geometry["lod"] = "0";
-      fp_geometry["type"] = "MultiSurface";
-
-      auto& footprint = footprints.get<LinearRing>(i);
-      add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
-      fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
-      building["geometry"].push_back(fp_geometry);
-      // building["geometry"] = nlohmann::json::array();
-
-      std::vector<std::string> buildingPartIds;
-
-      bool has_solids = false;
-      if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
-      if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
-      if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
-
-      if (has_solids) {
-        MeshMap meshmap;
-        if (export_lod12)
-          meshmap = multisolids_lod12.get<MeshMap>(i);
-        else if (export_lod13)
-          meshmap = multisolids_lod13.get<MeshMap>(i);
-        else if (export_lod22)
-          meshmap = multisolids_lod22.get<MeshMap>(i);
-
-        for ( const auto& [sid, solid_lodx] : meshmap ) {
-          auto buildingPart = nlohmann::json::object();
-          auto bp_id = b_id + "-" + std::to_string(sid);
-
-          buildingPartIds.push_back(bp_id);
-          buildingPart["type"] = "BuildingPart";
-          buildingPart["parents"] = {b_id};
-
-          if (export_lod12) {
-             add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid));
-             buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map));
-          }
-          if (export_lod13) {
-            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map));
-          }
-          if (export_lod22) {
-            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map));
-          }
-
-          //attrubutes
-          auto jattributes = nlohmann::json::object();
-          for (auto& term : poly_input("part_attributes").sub_terminals()) {
-            if (!term->get_data_vec()[i].has_value()) continue;
-            auto tname = term->get_name();
-            if (term->accepts_type(typeid(bool))) {
-              jattributes[tname] = term->get<const bool&>(bp_counter);
-            } else if (term->accepts_type(typeid(float))) {
-              jattributes[tname] = term->get<const float&>(bp_counter);
-            } else if (term->accepts_type(typeid(int))) {
-              jattributes[tname] = term->get<const int&>(bp_counter);
-            } else if (term->accepts_type(typeid(std::string))) {
-              jattributes[tname] = term->get<const std::string&>(bp_counter);
-
-            // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
-            } else if (term->accepts_type(typeid(Date))) {
-              auto t = term->get<const Date&>(bp_counter);
-              std::string date = std::to_string(t.year) + "-" + std::to_string(t.month) + "-" + std::to_string(t.day);
-              jattributes[tname] = date;
-            } else if (term->accepts_type(typeid(Time))) {
-              auto t = term->get<const Time&>(bp_counter);
-              std::string time = std::to_string(t.hour) + "-" + std::to_string(t.minute) + "-" + std::to_string(t.second);
-              jattributes[tname] = time;
-            } else if (term->accepts_type(typeid(DateTime))) {
-              auto t = term->get<const DateTime&>(bp_counter);
-              std::string datetime =
-                std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
-                + std::to_string(t.time.hour) + "-" + std::to_string(t.time.minute) + "-" + std::to_string(t.time.second);
-              jattributes[tname] = datetime;
-            }
-          }
-          ++bp_counter;
-          buildingPart["attributes"] = jattributes;
-
-          outputJSON["CityObjects"][bp_id] = buildingPart;
-        }
-      }
-
-      building["children"] = buildingPartIds;
-
-      outputJSON["CityObjects"][b_id] = building;
-    }
-
-    Box bbox;
-    bbox.add(vertex_vec);
-    // auto center = bbox.center();
-    std::vector<std::array<int,3>>vertices_int;
-    for (auto& vertex : vertex_vec) {
-      vertices_int.push_back({
-        int( vertex[0] * 1000 ),
-        int( vertex[1] * 1000 ),
-        int( vertex[2] * 1000 )
-      });
-    }
-    outputJSON["vertices"] = vertices_int;
-    outputJSON["transform"] = {
-      {"translate", *manager.data_offset},
-      {"scale", {0.001, 0.001, 0.001}}
-    };
-
-    // metadata
-    auto metadata = nlohmann::json::object();
-    auto minp = bbox.min();
-    auto maxp = bbox.max();
-    metadata["geographicalExtent"] = {
-      minp[0]+(*manager.data_offset)[0],
-      minp[1]+(*manager.data_offset)[1],
-      minp[2]+(*manager.data_offset)[2],
-      maxp[0]+(*manager.data_offset)[0],
-      maxp[1]+(*manager.data_offset)[1],
-      maxp[2]+(*manager.data_offset)[2]
-    };
-
-    metadata["identifier"] = manager.substitute_globals(meta_identifier_);
-
-    // metadata.datasetPointOfContact - only add it if at least one of the parameters is filled
-    auto contact = nlohmann::json::object();
-    bool poc_allempty = true;
-    if (std::string val = manager.substitute_globals(meta_poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
-    if (!poc_allempty) { metadata["pointOfContact"] = contact; }
-
-    if (std::string val = manager.substitute_globals(meta_referenceDate_); !val.empty()) {
-      // find current date if none provided
-      auto t = std::time(nullptr);
-      auto tm = *std::localtime(&t);
-      std::ostringstream oss;
-      oss << std::put_time(&tm, "%Y-%m-%d");
-      meta_referenceDate_              = oss.str();
-    }
-    metadata["referenceDate"] = manager.substitute_globals(meta_referenceDate_);
-
-    metadata["referenceSystem"] = manager.substitute_globals(meta_referenceSystem_);
-    metadata["title"] = manager.substitute_globals(meta_title_);
-
-    outputJSON["metadata"] = metadata;
-
-    auto fname = fs::path(manager.substitute_globals(filepath_));
+  void CityJSON::write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_)
+  {
     fs::create_directories(fname.parent_path());
-
     std::ofstream ofs;
     ofs.open(fname);
     ofs << std::fixed << std::setprecision(2);
@@ -394,26 +162,39 @@ namespace geoflow::nodes::basic3d
     }
   }
 
-  void CityJSONFeatureWriterNode::process() {
-    // inputs
-    auto& footprints = vector_input("footprints");
+  // Computes the geographicalExtent array from a geoflow::Box and the data_offset from the NodeManager
+  nlohmann::json::array_t CityJSON::compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset) {
+    auto minp = bbox.min();
+    auto maxp = bbox.max();
+    return {
+      minp[0]+(data_offset)[0],
+      minp[1]+(data_offset)[1],
+      minp[2]+(data_offset)[2],
+      maxp[0]+(data_offset)[0],
+      maxp[1]+(data_offset)[1],
+      maxp[2]+(data_offset)[2]
+    };
+  }
 
-    nlohmann::json outputJSON;
-
-    outputJSON["type"] = "CityJSONFeature";
-    outputJSON["CityObjects"] = nlohmann::json::object();
-
+  void CityJSON::write_cityobjects(
+    gfSingleFeatureInputTerminal& footprints,
+    gfSingleFeatureInputTerminal& multisolids_lod12,
+    gfSingleFeatureInputTerminal& multisolids_lod13,
+    gfSingleFeatureInputTerminal& multisolids_lod22,
+    gfMultiFeatureInputTerminal&  attributes,
+    gfMultiFeatureInputTerminal&  part_attributes,
+    json&                         outputJSON,
+    std::vector<arr3f>&           vertex_vec,
+    std::string&                  identifier_attribute,
+    StrMap&                       output_attribute_names,
+    std::array<double, 3>&        data_offset)
+  {
     std::map<arr3f, size_t> vertex_map;
-    std::vector<arr3f> vertex_vec;
     std::set<arr3f> vertex_set;
     size_t id_cntr = 0;
     size_t bp_counter = 0;
-    std::string identifier_attribute = manager.substitute_globals(identifier_attribute_);
 
     // we expect at least one of the geomtry inputs is set
-    auto& multisolids_lod12 = vector_input("geometry_lod12");
-    auto& multisolids_lod13 = vector_input("geometry_lod13");
-    auto& multisolids_lod22 = vector_input("geometry_lod22");
     bool export_lod12 = multisolids_lod12.has_data();
     bool export_lod13 = multisolids_lod13.has_data();
     bool export_lod22 = multisolids_lod22.has_data();
@@ -435,7 +216,7 @@ namespace geoflow::nodes::basic3d
       // Building atributes
       bool id_from_attr = false;
       auto jattributes = nlohmann::json::object();
-      for (auto& term : poly_input("attributes").sub_terminals()) {
+      for (auto& term : attributes.sub_terminals()) {
         if (!term->get_data_vec()[i].has_value()) continue;
         auto tname = term->get_name();
 
@@ -476,18 +257,24 @@ namespace geoflow::nodes::basic3d
       fp_geometry["lod"] = "0";
       fp_geometry["type"] = "MultiSurface";
 
-      auto& footprint = footprints.get<LinearRing>(i);
+      LinearRing footprint = footprints.get<LinearRing>(i);
       add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
       fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
       building["geometry"].push_back(fp_geometry);
 
       std::vector<std::string> buildingPartIds;
+      Box bbox = footprint.box();
 
       bool has_solids = false;
       if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
       if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
       if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
 
+      // TODO: For now, the "geographicalExtent" of the CityObject is simply
+      //  computed from the bbox of the footprint, but that has 0 for the Z.
+      //  Ideally, we compute the bbox of the incoming Mesh of the 3D models,
+      //  and pick the one that is available (in case not all three LoD-s have
+      //  geometry. However, the Mesh class needs to implement box() too.
       if (has_solids) {
         MeshMap meshmap;
         if (export_lod12)
@@ -520,7 +307,7 @@ namespace geoflow::nodes::basic3d
 
           //attrubutes
           auto jattributes = nlohmann::json::object();
-          for (auto& term : poly_input("part_attributes").sub_terminals()) {
+          for (auto& term : part_attributes.sub_terminals()) {
             if (!term->get_data_vec()[i].has_value()) continue;
             auto tname = term->get_name();
             if (term->accepts_type(typeid(bool))) {
@@ -557,15 +344,134 @@ namespace geoflow::nodes::basic3d
       }
 
       building["children"] = buildingPartIds;
+      building["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, data_offset);
 
       outputJSON["CityObjects"][b_id] = building;
-      // The main Building is the parent object
-      outputJSON["id"] = b_id;
     }
+  }
+
+  void CityJSONWriterNode::process() {
+    // inputs
+    auto& footprints = vector_input("footprints");
+    auto& multisolids_lod12 = vector_input("geometry_lod12");
+    auto& multisolids_lod13 = vector_input("geometry_lod13");
+    auto& multisolids_lod22 = vector_input("geometry_lod22");
+    auto& attributes = poly_input("attributes");
+    auto& part_attributes = poly_input("part_attributes");
+    std::string identifier_attribute =
+      manager.substitute_globals(identifier_attribute_);
+
+    nlohmann::json outputJSON;
+
+    outputJSON["type"] = "CityJSON";
+    outputJSON["version"] = "1.1";
+    outputJSON["CityObjects"] = nlohmann::json::object();
+
+    std::vector<arr3f> vertex_vec;
+    CityJSON::write_cityobjects(footprints,
+                                multisolids_lod12,
+                                multisolids_lod13,
+                                multisolids_lod22,
+                                attributes,
+                                part_attributes,
+                                outputJSON,
+                                vertex_vec,
+                                identifier_attribute,
+                                output_attribute_names,
+                                *manager.data_offset);
 
     Box bbox;
     bbox.add(vertex_vec);
     // auto center = bbox.center();
+    std::vector<std::array<int,3>>vertices_int;
+    for (auto& vertex : vertex_vec) {
+      vertices_int.push_back({
+        int( vertex[0] * 1000 ),
+        int( vertex[1] * 1000 ),
+        int( vertex[2] * 1000 )
+      });
+    }
+    outputJSON["vertices"] = vertices_int;
+    outputJSON["transform"] = {
+      {"translate", *manager.data_offset},
+      {"scale", {0.001, 0.001, 0.001}}
+    };
+
+    // metadata
+    auto metadata = nlohmann::json::object();
+    metadata["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, *manager.data_offset);
+
+    metadata["identifier"] = manager.substitute_globals(meta_identifier_);
+
+    // metadata.datasetPointOfContact - only add it if at least one of the parameters is filled
+    auto contact = nlohmann::json::object();
+    bool poc_allempty = true;
+    if (std::string val = manager.substitute_globals(meta_poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
+    if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
+    if (!poc_allempty) { metadata["pointOfContact"] = contact; }
+
+    if (std::string val = manager.substitute_globals(meta_referenceDate_); !val.empty()) {
+      // find current date if none provided
+      auto t = std::time(nullptr);
+      auto tm = *std::localtime(&t);
+      std::ostringstream oss;
+      oss << std::put_time(&tm, "%Y-%m-%d");
+      meta_referenceDate_              = oss.str();
+    }
+    metadata["referenceDate"] = manager.substitute_globals(meta_referenceDate_);
+
+    metadata["referenceSystem"] = manager.substitute_globals(meta_referenceSystem_);
+    metadata["title"] = manager.substitute_globals(meta_title_);
+
+    outputJSON["metadata"] = metadata;
+
+    fs::path fname = fs::path(manager.substitute_globals(filepath_));
+    CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
+  }
+
+  void CityJSONFeatureWriterNode::process() {
+    // inputs
+    auto& footprints = vector_input("footprints");
+    auto& multisolids_lod12 = vector_input("geometry_lod12");
+    auto& multisolids_lod13 = vector_input("geometry_lod13");
+    auto& multisolids_lod22 = vector_input("geometry_lod22");
+    auto& attributes = poly_input("attributes");
+    auto& part_attributes = poly_input("part_attributes");
+    std::string identifier_attribute =
+      manager.substitute_globals(identifier_attribute_);
+
+    nlohmann::json outputJSON;
+
+    outputJSON["type"] = "CityJSONFeature";
+    outputJSON["CityObjects"] = nlohmann::json::object();
+
+    std::vector<arr3f> vertex_vec;
+    CityJSON::write_cityobjects(footprints,
+                                multisolids_lod12,
+                                multisolids_lod13,
+                                multisolids_lod22,
+                                attributes,
+                                part_attributes,
+                                outputJSON,
+                                vertex_vec,
+                                identifier_attribute,
+                                output_attribute_names,
+                                *manager.data_offset);
+
+    // The main Building is the parent object.
+    // Bit of a hack. Ideally we would know exactly which ID we set,
+    // instead of just iterating. But it is assumed that in case of writing to
+    // CityJSONFeature there is only one parent CityObject.
+    for (auto& el : outputJSON["CityObjects"].items()) {
+      if (!el.value().contains(std::string("parents"))) {
+        outputJSON["id"] = el.key();
+      }
+    };
+
     std::vector<std::array<int,3>>vertices_int;
     std::array<double, 3> doffset_ = {0.0, 0.0, 0.0};
     if (manager.data_offset.has_value()) doffset_ = manager.data_offset.value();
@@ -581,20 +487,7 @@ namespace geoflow::nodes::basic3d
     }
     outputJSON["vertices"] = vertices_int;
 
-    auto fname = fs::path(manager.substitute_globals(filepath_));
-    fs::create_directories(fname.parent_path());
-
-    std::ofstream ofs;
-    ofs.open(fname);
-    ofs << std::fixed << std::setprecision(2);
-    try {
-      if (prettyPrint_)
-        ofs << outputJSON.dump(2);
-      else
-        ofs << outputJSON;
-    } catch (const std::exception& e) {
-      std::cerr << e.what();
-      return;
-    }
+    fs::path fname = fs::path(manager.substitute_globals(filepath_));
+    CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
   }
 } // namespace geoflow::nodes::basic3d

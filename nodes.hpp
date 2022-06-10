@@ -16,8 +16,11 @@
 
 #include <fstream>
 #include <iomanip>
+#include <filesystem>
 
 #include <geoflow/geoflow.hpp>
+
+namespace fs = std::filesystem;
 
 namespace geoflow::nodes::basic3d
 {
@@ -126,11 +129,24 @@ class CityJSONReaderNode : public Node {
 };
 
 // Helper functions for processing CityJSON data
-class CityJSON : public Node {
+class CityJSON{
 
   public:
     static std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
     static nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
+    static void write_cityobjects(gfSingleFeatureInputTerminal& footprints,
+                                  gfSingleFeatureInputTerminal& multisolids_lod12,
+                                  gfSingleFeatureInputTerminal& multisolids_lod13,
+                                  gfSingleFeatureInputTerminal& multisolids_lod22,
+                                  gfMultiFeatureInputTerminal&  attributes,
+                                  gfMultiFeatureInputTerminal&  part_attributes,
+                                  json&                         outputJSON,
+                                  std::vector<arr3f>&           vertex_vec,
+                                  std::string&                  identifier_attribute,
+                                  StrMap&                       output_attribute_names,
+                                  std::array<double, 3>&        data_offset);
+    static void write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_);
+    static nlohmann::json::array_t compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset);
 };
 
 class CityJSONWriterNode : public Node {
