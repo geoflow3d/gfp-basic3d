@@ -111,11 +111,9 @@ class CityJSONReaderNode : public Node {
 };
 
 // Helper functions for processing CityJSON data
-class CityJSON : public Node {
+class CityJSON{
 
   public:
-    using Node::Node;
-
     static std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
     static nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
     static void write_cityobjects(gfSingleFeatureInputTerminal& footprints,
