@@ -259,7 +259,8 @@ namespace geoflow::nodes::basic3d
 
       LinearRing footprint = footprints.get<LinearRing>(i);
       add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
-      fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
+      auto bndry = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
+      fp_geometry["boundaries"] = bndry;
       building["geometry"].push_back(fp_geometry);
 
       std::vector<std::string> buildingPartIds;
