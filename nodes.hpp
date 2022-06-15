@@ -204,7 +204,7 @@ class CityJSONWriterNode : public Node {
     key_options.clear();
     if(&it == &poly_input("attributes")) {
       for(auto sub_term : it.sub_terminals()) {
-        key_options.push_back(sub_term->get_name());
+        key_options.push_back(sub_term->get_full_name());
       }
     }
   };
@@ -283,7 +283,7 @@ public:
     key_options.clear();
     if(&it == &poly_input("attributes")) {
       for(auto sub_term : it.sub_terminals()) {
-        key_options.push_back(sub_term->get_name());
+        key_options.push_back(sub_term->get_full_name());
       }
     }
   };
