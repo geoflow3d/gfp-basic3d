@@ -128,33 +128,13 @@ class CityJSONReaderNode : public Node {
   void process() override;
 };
 
-// Helper functions for processing CityJSON data
-class CityJSON{
-
-  public:
-    static std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face);
-    static nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map);
-    static void write_cityobjects(gfSingleFeatureInputTerminal& footprints,
-                                  gfSingleFeatureInputTerminal& multisolids_lod12,
-                                  gfSingleFeatureInputTerminal& multisolids_lod13,
-                                  gfSingleFeatureInputTerminal& multisolids_lod22,
-                                  gfMultiFeatureInputTerminal&  attributes,
-                                  gfMultiFeatureInputTerminal&  part_attributes,
-                                  json&                         outputJSON,
-                                  std::vector<arr3f>&           vertex_vec,
-                                  std::string&                  identifier_attribute,
-                                  StrMap&                       output_attribute_names,
-                                  std::array<double, 3>&        data_offset);
-    static void write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_);
-    static nlohmann::json::array_t compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset);
-};
-
 class CityJSONWriterNode : public Node {
 
   // parameter variables
   std::string filepath_;
+  std::string CRS_ = "EPSG:7415";
   std::string identifier_attribute_ = "";
-  std::string meta_referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
+  // std::string meta_referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
   std::string meta_identifier_      = "42";
   std::string meta_title_           = "3D BAG development";
   std::string meta_referenceDate_   = "1970-01-01";
@@ -184,6 +164,7 @@ class CityJSONWriterNode : public Node {
 
     // declare parameters
     add_param(ParamPath(filepath_, "filepath", "File path"));
+    add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
     add_param(ParamString(identifier_attribute_, "identifier_attribute", "(Renamed) attribute to use for CityObject ID (leave empty for auto ID generation). Only works for int and string attributes."));
     add_param(ParamString(meta_identifier_, "meta_identifier", "Metadata: identifier"));
     add_param(ParamString(meta_poc_contactName_, "meta_poc_contactName", "Metadata: pointOfContact.contactName"));
@@ -194,7 +175,7 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(meta_poc_type_, "meta_poc_contactType", "Metadata: pointOfContact.contactType"));
     add_param(ParamString(meta_poc_website_, "meta_poc_website", "Metadata: pointOfContact.website"));
     add_param(ParamString(meta_referenceDate_, "meta_referenceDate", "Metadata: referenceDate"));
-    add_param(ParamString(meta_referenceSystem_, "meta_referenceSystem", "Metadata: referenceSystem"));
+    // add_param(ParamString(meta_referenceSystem_, "meta_referenceSystem", "Metadata: referenceSystem"));
     add_param(ParamString(meta_title_, "meta_title", "Metadata: title"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
@@ -239,6 +220,7 @@ class CityJSONWriterNode : public Node {
 class CityJSONFeatureWriterNode : public Node {
 
   // parameter variables
+  std::string CRS_ = "EPSG:7415";
   std::string filepath_;
   std::string identifier_attribute_ = "";
 
@@ -268,6 +250,7 @@ public:
 
     // declare parameters
     add_param(ParamPath(filepath_, "filepath", "File path"));
+    add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
     add_param(ParamString(identifier_attribute_, "identifier_attribute", "(Renamed) attribute to use for CityObject ID (leave empty for auto ID generation). Only works for int and string attributes."));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));

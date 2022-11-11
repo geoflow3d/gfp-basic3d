@@ -81,10 +81,13 @@ namespace geoflow::nodes::basic3d
     }
   }
 
-  void add_vertices_polygon(std::map<arr3f, size_t>& vertex_map, std::vector<arr3f>& vertex_vec, std::set<arr3f>& vertex_set, const LinearRing& polygon) {
+  Box add_vertices_polygon(std::map<arr3d, size_t>& vertex_map, std::vector<arr3d>& vertex_vec, std::set<arr3d>& vertex_set, const LinearRing& polygon, NodeManager& manager) {
     size_t v_cntr = vertex_vec.size();
-    for (auto &vertex : polygon)
+    Box bbox;
+    for (auto &vertex_ : polygon)
     {
+      auto vertex = manager.coord_transform_rev(vertex_);
+      bbox.add(vertex);
       auto [it, did_insert] = vertex_set.insert(vertex);
       if (did_insert)
       {
@@ -92,25 +95,52 @@ namespace geoflow::nodes::basic3d
         vertex_vec.push_back(vertex);
       }
     }
+    return bbox;
   }
 
-  void add_vertices_mesh(std::map<arr3f, size_t>& vertex_map, std::vector<arr3f>& vertex_vec, std::set<arr3f>& vertex_set, const Mesh& mesh) {
+  Box add_vertices_mesh(std::map<arr3d, size_t>& vertex_map, std::vector<arr3d>& vertex_vec, std::set<arr3d>& vertex_set, const Mesh& mesh, NodeManager& manager) {
+    Box bbox;
     for (auto &face : mesh.get_polygons())
     {
-      add_vertices_polygon(vertex_map, vertex_vec, vertex_set, face);
+      bbox.add( add_vertices_polygon(vertex_map, vertex_vec, vertex_set, face, manager) );
     }
+    return bbox;
   }
 
-  std::vector<std::vector<size_t>> CityJSON::LinearRing2jboundary(std::map<arr3f, size_t>& vertex_map, const LinearRing& face) {
+
+    // Helper functions for processing CityJSON data
+  class CityJSON{
+
+    public:
+      static std::vector<std::vector<size_t>> LinearRing2jboundary(std::map<arr3d, size_t>& vertex_map, const LinearRing& face, NodeManager& manager);
+      static nlohmann::json::object_t mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3d, size_t>& vertex_map, NodeManager& manager);
+      static void write_cityobjects(gfSingleFeatureInputTerminal& footprints,
+                                    gfSingleFeatureInputTerminal& multisolids_lod12,
+                                    gfSingleFeatureInputTerminal& multisolids_lod13,
+                                    gfSingleFeatureInputTerminal& multisolids_lod22,
+                                    gfMultiFeatureInputTerminal&  attributes,
+                                    gfMultiFeatureInputTerminal&  part_attributes,
+                                    json&                         outputJSON,
+                                    std::vector<arr3d>&           vertex_vec,
+                                    std::string&                  identifier_attribute,
+                                    StrMap&                       output_attribute_names,
+                                    NodeManager&                  node_manager);
+      static void write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_);
+      static nlohmann::json::array_t compute_geographical_extent(Box& bbox, NodeManager& manager);
+  };
+
+  std::vector<std::vector<size_t>> CityJSON::LinearRing2jboundary(std::map<arr3d, size_t>& vertex_map, const LinearRing& face, NodeManager& manager) {
     std::vector<std::vector<size_t>> jface;
     std::vector<size_t> exterior_ring;
-    for (auto &vertex : face) {
+    for (auto &vertex_ : face) {
+      auto vertex = manager.coord_transform_rev(vertex_);
       exterior_ring.push_back(vertex_map[vertex]);
     }
     jface.emplace_back(std::move(exterior_ring));
     for (auto &iring : face.interior_rings()) {
       std::vector<size_t> interior_ring;
-      for (auto &vertex : iring) {
+      for (auto &vertex_ : iring) {
+        auto vertex = manager.coord_transform_rev(vertex_);
         interior_ring.push_back(vertex_map[vertex]);
       }
       jface.emplace_back(std::move(interior_ring));
@@ -118,7 +148,7 @@ namespace geoflow::nodes::basic3d
     return jface;
   }
 
-  nlohmann::json::object_t CityJSON::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3f, size_t>& vertex_map) {
+  nlohmann::json::object_t CityJSON::mesh2jSolid(const Mesh& mesh, const char* lod, std::map<arr3d, size_t>& vertex_map, NodeManager& manager) {
     auto geometry = nlohmann::json::object();
     geometry["type"] = "Solid";
     geometry["lod"] = lod;
@@ -126,7 +156,7 @@ namespace geoflow::nodes::basic3d
 
     for (auto &face : mesh.get_polygons())
     {
-      exterior_shell.emplace_back( LinearRing2jboundary(vertex_map, face) );
+      exterior_shell.emplace_back( LinearRing2jboundary(vertex_map, face, manager) );
     }
     geometry["boundaries"] = {exterior_shell};
 
@@ -178,16 +208,16 @@ namespace geoflow::nodes::basic3d
   }
 
   // Computes the geographicalExtent array from a geoflow::Box and the data_offset from the NodeManager
-  nlohmann::json::array_t CityJSON::compute_geographical_extent(Box& bbox, std::array<double,3>& data_offset) {
+  nlohmann::json::array_t CityJSON::compute_geographical_extent(Box& bbox, NodeManager& manager) {
     auto minp = bbox.min();
     auto maxp = bbox.max();
     return {
-      minp[0]+(data_offset)[0],
-      minp[1]+(data_offset)[1],
-      minp[2]+(data_offset)[2],
-      maxp[0]+(data_offset)[0],
-      maxp[1]+(data_offset)[1],
-      maxp[2]+(data_offset)[2]
+      minp[0],
+      minp[1],
+      minp[2],
+      maxp[0],
+      maxp[1],
+      maxp[2]
     };
   }
 
@@ -199,13 +229,13 @@ namespace geoflow::nodes::basic3d
     gfMultiFeatureInputTerminal&  attributes,
     gfMultiFeatureInputTerminal&  part_attributes,
     json&                         outputJSON,
-    std::vector<arr3f>&           vertex_vec,
+    std::vector<arr3d>&           vertex_vec,
     std::string&                  identifier_attribute,
     StrMap&                       output_attribute_names,
-    std::array<double, 3>&        data_offset)
+    NodeManager&                  node_manager)
   {
-    std::map<arr3f, size_t> vertex_map;
-    std::set<arr3f> vertex_set;
+    std::map<arr3d, size_t> vertex_map;
+    std::set<arr3d> vertex_set;
     size_t id_cntr = 0;
     size_t bp_counter = 0;
 
@@ -273,23 +303,19 @@ namespace geoflow::nodes::basic3d
       fp_geometry["type"] = "MultiSurface";
 
       LinearRing footprint = footprints.get<LinearRing>(i);
-      add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint);
-      fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint)};
+      add_vertices_polygon(vertex_map, vertex_vec, vertex_set, footprint, node_manager);
+      fp_geometry["boundaries"] = {CityJSON::LinearRing2jboundary(vertex_map, footprint, node_manager)};
       building["geometry"].push_back(fp_geometry);
 
       std::vector<std::string> buildingPartIds;
-      Box bbox = footprint.box();
+      
 
       bool has_solids = false;
       if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
       if (export_lod13) has_solids = multisolids_lod13.get_data_vec()[i].has_value();
       if (export_lod22) has_solids = multisolids_lod22.get_data_vec()[i].has_value();
 
-      // TODO: For now, the "geographicalExtent" of the CityObject is simply
-      //  computed from the bbox of the footprint, but that has 0 for the Z.
-      //  Ideally, we compute the bbox of the incoming Mesh of the 3D models,
-      //  and pick the one that is available (in case not all three LoD-s have
-      //  geometry. However, the Mesh class needs to implement box() too.
+      Box building_bbox;
       if (has_solids) {
         MeshMap meshmap;
         if (export_lod12)
@@ -308,16 +334,16 @@ namespace geoflow::nodes::basic3d
           buildingPart["parents"] = {b_id};
 
           if (export_lod12) {
-            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map));
+            building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid), node_manager);
+            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map, node_manager));
           }
           if (export_lod13) {
-            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map));
+            building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid), node_manager);
+            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map, node_manager));
           }
           if (export_lod22) {
-            add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid));
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map));
+            building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid), node_manager);
+            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod22.get<MeshMap>(i).at(sid), "2.2", vertex_map, node_manager));
           }
 
           //attrubutes
@@ -359,7 +385,7 @@ namespace geoflow::nodes::basic3d
       }
 
       building["children"] = buildingPartIds;
-      building["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, data_offset);
+      building["geographicalExtent"] = CityJSON::compute_geographical_extent(building_bbox, node_manager);
 
       outputJSON["CityObjects"][b_id] = building;
     }
@@ -376,13 +402,15 @@ namespace geoflow::nodes::basic3d
     std::string identifier_attribute =
       manager.substitute_globals(identifier_attribute_);
 
+    manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
+
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSON";
     outputJSON["version"] = "1.1";
     outputJSON["CityObjects"] = nlohmann::json::object();
 
-    std::vector<arr3f> vertex_vec;
+    std::vector<arr3d> vertex_vec;
     CityJSON::write_cityobjects(footprints,
                                 multisolids_lod12,
                                 multisolids_lod13,
@@ -393,28 +421,32 @@ namespace geoflow::nodes::basic3d
                                 vertex_vec,
                                 identifier_attribute,
                                 output_attribute_names,
-                                *manager.data_offset);
+                                manager);
 
     Box bbox;
-    bbox.add(vertex_vec);
-    // auto center = bbox.center();
+    
     std::vector<std::array<int,3>>vertices_int;
     for (auto& vertex : vertex_vec) {
+      bbox.add(vertex);
+    }
+
+    auto center = bbox.center();
+    for (auto& vertex : vertex_vec) {
       vertices_int.push_back({
-        int( vertex[0] * 1000 ),
-        int( vertex[1] * 1000 ),
-        int( vertex[2] * 1000 )
+        int( (vertex[0] - center[0]) * 1000 ),
+        int( (vertex[1] - center[1]) * 1000 ),
+        int( (vertex[2] - center[2]) * 1000 )
       });
     }
     outputJSON["vertices"] = vertices_int;
     outputJSON["transform"] = {
-      {"translate", *manager.data_offset},
+      {"translate", center},
       {"scale", {0.001, 0.001, 0.001}}
     };
 
     // metadata
     auto metadata = nlohmann::json::object();
-    metadata["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, *manager.data_offset);
+    metadata["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, manager);
 
     metadata["identifier"] = manager.substitute_globals(meta_identifier_);
 
@@ -439,13 +471,14 @@ namespace geoflow::nodes::basic3d
     }
     metadata["referenceDate"] = manager.substitute_globals(meta_referenceDate_);
 
-    metadata["referenceSystem"] = manager.substitute_globals(meta_referenceSystem_);
+    metadata["referenceSystem"] = "https://www.opengis.net/def/crs/" +manager.get_rev_crs_id_auth_name()+ "/0/" +manager.get_rev_crs_id_code();
     metadata["title"] = manager.substitute_globals(meta_title_);
 
     outputJSON["metadata"] = metadata;
 
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
     CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
+    manager.clear_rev_crs_transform();
   }
 
   void CityJSONFeatureWriterNode::process() {
@@ -459,12 +492,14 @@ namespace geoflow::nodes::basic3d
     std::string identifier_attribute =
       manager.substitute_globals(identifier_attribute_);
 
+    manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
+
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSONFeature";
     outputJSON["CityObjects"] = nlohmann::json::object();
 
-    std::vector<arr3f> vertex_vec;
+    std::vector<arr3d> vertex_vec;
     CityJSON::write_cityobjects(footprints,
                                 multisolids_lod12,
                                 multisolids_lod13,
@@ -475,7 +510,7 @@ namespace geoflow::nodes::basic3d
                                 vertex_vec,
                                 identifier_attribute,
                                 output_attribute_names,
-                                *manager.data_offset);
+                                manager);
 
     // The main Building is the parent object.
     // Bit of a hack. Ideally we would know exactly which ID we set,
@@ -488,11 +523,9 @@ namespace geoflow::nodes::basic3d
     };
 
     std::vector<std::array<int,3>>vertices_int;
-    std::array<double, 3> doffset_ = {0.0, 0.0, 0.0};
-    if (manager.data_offset.has_value()) doffset_ = manager.data_offset.value();
-    double _offset_x = doffset_[0] + translate_x_;
-    double _offset_y = doffset_[1] + translate_y_;
-    double _offset_z = doffset_[2] + translate_z_;
+    double _offset_x = translate_x_;
+    double _offset_y = translate_y_;
+    double _offset_z = translate_z_;
     for (auto& vertex : vertex_vec) {
       vertices_int.push_back({
         int( (vertex[0] / scale_x_) + _offset_x ),
@@ -504,5 +537,6 @@ namespace geoflow::nodes::basic3d
 
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
     CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
+    manager.clear_rev_crs_transform();
   }
 } // namespace geoflow::nodes::basic3d
