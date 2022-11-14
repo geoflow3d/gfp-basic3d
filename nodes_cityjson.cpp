@@ -81,10 +81,9 @@ namespace geoflow::nodes::basic3d
     }
   }
 
-  Box add_vertices_polygon(std::map<arr3d, size_t>& vertex_map, std::vector<arr3d>& vertex_vec, std::set<arr3d>& vertex_set, const LinearRing& polygon, NodeManager& manager) {
+  template<typename T> void add_vertices_ring(std::map<arr3d, size_t>& vertex_map, std::vector<arr3d>& vertex_vec, std::set<arr3d>& vertex_set, const T& ring, NodeManager& manager, Box& bbox) {
     size_t v_cntr = vertex_vec.size();
-    Box bbox;
-    for (auto &vertex_ : polygon)
+    for (auto &vertex_ : ring)
     {
       auto vertex = manager.coord_transform_rev(vertex_);
       bbox.add(vertex);
@@ -94,6 +93,14 @@ namespace geoflow::nodes::basic3d
         vertex_map[vertex] = v_cntr++;
         vertex_vec.push_back(vertex);
       }
+    }
+  }
+
+  Box add_vertices_polygon(std::map<arr3d, size_t>& vertex_map, std::vector<arr3d>& vertex_vec, std::set<arr3d>& vertex_set, const LinearRing& polygon, NodeManager& manager) {
+    Box bbox;
+    add_vertices_ring(vertex_map, vertex_vec, vertex_set, polygon, manager, bbox);
+    for (auto &iring : polygon.interior_rings()) {
+      add_vertices_ring(vertex_map, vertex_vec, vertex_set, iring, manager, bbox);
     }
     return bbox;
   }
