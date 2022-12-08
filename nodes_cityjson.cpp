@@ -546,4 +546,29 @@ namespace geoflow::nodes::basic3d
     CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
     manager.clear_rev_crs_transform();
   }
+
+
+  void CityJSONFeatureMetadataWriterNode::process() {
+
+    manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
+
+    nlohmann::json outputJSON;
+
+    outputJSON["type"] = "CityJSON";
+    outputJSON["version"] = "1.1";
+    outputJSON["CityObjects"] = nlohmann::json::object();
+    outputJSON["vertices"] = nlohmann::json::array();
+
+    outputJSON["transform"] = {
+      {"translate", { translate_x_, translate_y_, translate_z_ }},
+      {"scale", { scale_x_, scale_y_, scale_z_}}
+    };
+    outputJSON["metadata"] = {
+      {"referenceSystem", "https://www.opengis.net/def/crs/" +manager.get_rev_crs_id_auth_name()+ "/0/" +manager.get_rev_crs_id_code() }
+    };
+
+    fs::path fname = fs::path(manager.substitute_globals(filepath_));
+    CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
+    manager.clear_rev_crs_transform();
+  }
 } // namespace geoflow::nodes::basic3d

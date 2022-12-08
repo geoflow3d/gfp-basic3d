@@ -33,7 +33,7 @@ class OBJWriterNode : public Node
 
 public:
   using Node::Node;
-  void init()
+  void init() override
   {
     add_input("triangles", typeid(TriangleCollection));
 
@@ -41,7 +41,7 @@ public:
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
     add_param(ParamInt(precision, "precision", "precision"));
   }
-  void process();
+  void process() override;
   bool parameters_valid() override {
     if (manager.substitute_globals(filepath).empty()) 
       return false;
@@ -58,7 +58,7 @@ class PLYWriterNode : public Node
 
 public:
   using Node::Node;
-  void init()
+  void init() override
   {
     add_input("geometries", typeid(PointCollection));
     add_poly_input("attributes", {typeid(float)});
@@ -67,7 +67,7 @@ public:
     add_param(ParamBool(no_offset, "no_offset", "Do not apply global offset"));
     add_param(ParamBool(write_ascii, "write_ascii", "Output as ascii file instead of binary"));
   }
-  void process();
+  void process() override;
   bool parameters_valid() override {
     if (manager.substitute_globals(filepath).empty()) 
       return false;
@@ -86,7 +86,7 @@ class VecOBJWriterNode : public Node
 
 public:
   using Node::Node;
-  void init()
+  void init() override
   {
     add_vector_input("triangles", {typeid(TriangleCollection), typeid(MultiTriangleCollection)});
     add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
@@ -97,7 +97,7 @@ public:
     add_param(ParamString(attribute_name, "attribute_name", "attribute to use as identifier for obj objects. Has to be a string attribute."));
     add_param(ParamString(headerline_, "Headerline", "add this string as a comment in the header of the OBJ file"));
   }
-  void process();
+  void process() override;
   bool parameters_valid() override {
     if (manager.substitute_globals(filepath).empty()) 
       return false;
@@ -229,12 +229,12 @@ class CityJSONFeatureWriterNode : public Node {
   vec1s key_options;
   StrMap output_attribute_names;
 
-  float translate_x_;
-  float translate_y_;
-  float translate_z_;
-  float scale_x_;
-  float scale_y_;
-  float scale_z_;
+  float translate_x_ = 0.;
+  float translate_y_ = 0.;
+  float translate_z_ = 0.;
+  float scale_x_ = 1.;
+  float scale_y_ = 1.;
+  float scale_z_ = 1.;
 
 public:
   using Node::Node;
@@ -295,6 +295,41 @@ public:
     }
 
     return input("footprints").has_data() && poly_input("attributes").has_data() && !has_connection_without_data && has_connection;
+  }
+
+  void process() override;
+};
+
+class CityJSONFeatureMetadataWriterNode : public Node {
+  float scale_x_ = 0.001;
+  float scale_y_ = 0.001;
+  float scale_z_ = 0.001;
+  float translate_x_ = 0;
+  float translate_y_ = 0;
+  float translate_z_ = 0;
+  
+  bool prettyPrint_ = false;
+  
+  std::string CRS_ = "EPSG:7415";
+  std::string filepath_;
+  
+  public:
+  using Node::Node;
+
+  void init() override {
+    // declare ouput terminals
+    add_vector_input("footprints", typeid(LinearRing)); // just to ensure this node is executed after reading some input data so that global translate is set.
+
+    // declare parameters
+    add_param(ParamPath(filepath_, "filepath", "File path"));
+    add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
+    add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
+    add_param(ParamFloat(translate_x_, "translate_x", "CityJSON transform.translate.x"));
+    add_param(ParamFloat(translate_y_, "translate_y", "CityJSON transform.translate.y"));
+    add_param(ParamFloat(translate_z_, "translate_z", "CityJSON transform.translate.z"));
+    add_param(ParamFloat(scale_x_, "scale_x", "CityJSON transform.scale.x"));
+    add_param(ParamFloat(scale_y_, "scale_y", "CityJSON transform.scale.y"));
+    add_param(ParamFloat(scale_z_, "scale_z", "CityJSON transform.scale.z"));
   }
 
   void process() override;
