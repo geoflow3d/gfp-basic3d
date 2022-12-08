@@ -25,4 +25,6 @@ void register_nodes(geoflow::NodeRegister& node_register) {
   node_register.register_node<CityJSONWriterNode>("CityJSONWriter");
   node_register.register_node<CityJSONFeatureWriterNode>("CityJSONFeatureWriter");
   node_register.register_node<CityJSONFeatureMetadataWriterNode>("CityJSONFeatureMetadataWriter");
+  node_register.register_node<JSONReaderNode>("JSONReader");
+  node_register.register_node<CityJSONLinesWriterNode>("CityJSONLinesWriter");
 }

@@ -20,6 +20,8 @@
 
 #include <geoflow/geoflow.hpp>
 
+#include <nlohmann/json.hpp>
+
 namespace fs = std::filesystem;
 
 namespace geoflow::nodes::basic3d
@@ -330,6 +332,45 @@ class CityJSONFeatureMetadataWriterNode : public Node {
     add_param(ParamFloat(scale_x_, "scale_x", "CityJSON transform.scale.x"));
     add_param(ParamFloat(scale_y_, "scale_y", "CityJSON transform.scale.y"));
     add_param(ParamFloat(scale_z_, "scale_z", "CityJSON transform.scale.z"));
+  }
+
+  void process() override;
+};
+
+class JSONReaderNode : public Node {
+
+  // parameter variables
+  std::string filepath_;
+
+public:
+  using Node::Node;
+
+  void init() override {
+    add_vector_output("json", typeid(nlohmann::json));
+
+    // declare parameters
+    add_param(ParamPath(filepath_, "filepath", "File path"));
+  }
+
+  void process() override;
+};
+
+class CityJSONLinesWriterNode : public Node {
+
+  // parameter variables
+  std::string filepath_;
+  bool prettyPrint_ = false;
+
+public:
+  using Node::Node;
+
+  void init() override {
+    add_input("first_line", typeid(nlohmann::json));
+    add_vector_input("features", typeid(nlohmann::json));
+
+    // declare parameters
+    add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
+    add_param(ParamPath(filepath_, "filepath", "File path"));
   }
 
   void process() override;

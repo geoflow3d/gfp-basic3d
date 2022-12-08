@@ -41,8 +41,7 @@ namespace geoflow::nodes::basic3d
     try {
       inputStream >> json;
     } catch (const std::exception& e) {
-      std::cerr << e.what();
-      return;
+      throw(gfIOError(e.what()));
     }
 
     // extract geometries
@@ -209,8 +208,7 @@ namespace geoflow::nodes::basic3d
       else
         ofs << outputJSON;
     } catch (const std::exception& e) {
-      std::cerr << e.what();
-      return;
+      throw(gfIOError(e.what()));
     }
   }
 
@@ -571,4 +569,53 @@ namespace geoflow::nodes::basic3d
     CityJSON::write_to_file(outputJSON, fname, prettyPrint_);
     manager.clear_rev_crs_transform();
   }
+
+  void JSONReaderNode::process() {
+    // read json file from disk
+    std::ifstream inputStream(manager.substitute_globals(filepath_));
+    nlohmann::json json;
+    try {
+      inputStream >> json;
+    } catch (const std::exception& e) {
+      throw(gfIOError(e.what()));
+    }
+    vector_output("json").push_back(json);
+  }
+
+  void offset_indices(nlohmann::json& j, const size_t& offset){
+    if (j.type() == nlohmann::json::value_t::number_integer) {
+      j = j.get<size_t>() + offset;
+    } else {
+      for (auto& k : j) {
+        offset_indices(k, offset);
+      }
+    }
+  }
+  void set_vertex_index_offset(nlohmann::json& geometry, const size_t& offset) {
+    for( auto gpart : geometry ) {
+      offset_indices(gpart["boundaries"], offset);
+    }
+  }
+
+  void CityJSONLinesWriterNode::process() {
+    auto json = input("first_line").get<nlohmann::json>();
+    auto& features_inp = vector_input("features");
+
+    size_t vindex_offset = 0;
+    for (size_t i=0; i< features_inp.size(); ++i) {
+      auto& feature = features_inp.get<nlohmann::json>(i);
+      for( auto cobject : feature["CityObjects"] ) {
+        //fix vertex indices...
+        set_vertex_index_offset(cobject["geometry"], vindex_offset);
+        json["CityObjects"].push_back(cobject);
+      }
+      json["vertices"].insert(feature.begin(), feature.end());
+      vindex_offset = json["vertices"].size();
+    }
+
+    fs::path fname = fs::path(manager.substitute_globals(filepath_));
+    CityJSON::write_to_file(json, fname, prettyPrint_);
+  }
+
+
 } // namespace geoflow::nodes::basic3d
