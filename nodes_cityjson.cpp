@@ -583,7 +583,7 @@ namespace geoflow::nodes::basic3d
   }
 
   void offset_indices(nlohmann::json& j, const size_t& offset){
-    if (j.type() == nlohmann::json::value_t::number_integer) {
+    if (j.type() == nlohmann::json::value_t::number_unsigned) {
       j = j.get<size_t>() + offset;
     } else {
       for (auto& k : j) {
@@ -592,6 +592,8 @@ namespace geoflow::nodes::basic3d
     }
   }
   void set_vertex_index_offset(nlohmann::json& geometry, const size_t& offset) {
+    if(offset==0) return;
+
     for( auto gpart : geometry ) {
       offset_indices(gpart["boundaries"], offset);
     }
@@ -604,12 +606,23 @@ namespace geoflow::nodes::basic3d
     size_t vindex_offset = 0;
     for (size_t i=0; i< features_inp.size(); ++i) {
       auto& feature = features_inp.get<nlohmann::json>(i);
-      for( auto cobject : feature["CityObjects"] ) {
-        //fix vertex indices...
-        set_vertex_index_offset(cobject["geometry"], vindex_offset);
-        json["CityObjects"].push_back(cobject);
+      
+      if(feature["type"] != "CityJSONFeature") {
+        throw(gfException("input is not CityJSONFeature"));
       }
-      json["vertices"].insert(feature.begin(), feature.end());
+
+      for( auto [id, cobject] : feature["CityObjects"].items() ) {
+        
+        json["CityObjects"][id] = cobject;
+        //fix vertex indices...
+        for (auto& geom : json["CityObjects"][id]["geometry"]) {
+          set_vertex_index_offset(geom["boundaries"], vindex_offset);
+          // std::cout<<boundaries<< std::endl;
+        }
+      }
+      // std::cout << json << std::endl;
+      // std::cout << feature << std::endl;
+      json["vertices"].insert(json["vertices"].end(), feature["vertices"].begin(), feature["vertices"].end());
       vindex_offset = json["vertices"].size();
     }
 
