@@ -1,0 +1,12 @@
+namespace CityFB;
+
+enum FileType { CityJSONFeature }
+union CityObject { Building }
+union Geometry { Monster, Weapon, Pickup }
+
+table CityJSONFeature {
+  type:FileType;
+  id:string;
+  CityObjects:
+  vertices:
+}

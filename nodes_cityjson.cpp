@@ -533,9 +533,9 @@ namespace geoflow::nodes::basic3d
     double _offset_z = translate_z_;
     for (auto& vertex : vertex_vec) {
       vertices_int.push_back({
-        int( (vertex[0] / scale_x_) + _offset_x ),
-        int( (vertex[1] / scale_y_) + _offset_y ),
-        int( (vertex[2] / scale_z_) + _offset_z )
+        int( (vertex[0] - _offset_x ) / scale_x_ ),
+        int( (vertex[1] - _offset_y ) / scale_y_ ),
+        int( (vertex[2] - _offset_z ) / scale_z_ )
       });
     }
     outputJSON["vertices"] = vertices_int;
@@ -593,10 +593,9 @@ namespace geoflow::nodes::basic3d
   }
   void set_vertex_index_offset(nlohmann::json& geometry, const size_t& offset) {
     if(offset==0) return;
+    std::cout<<geometry<< std::endl;
 
-    for( auto gpart : geometry ) {
-      offset_indices(gpart["boundaries"], offset);
-    }
+    offset_indices(geometry["boundaries"], offset);
   }
 
   void CityJSONLinesWriterNode::process() {
@@ -616,7 +615,7 @@ namespace geoflow::nodes::basic3d
         json["CityObjects"][id] = cobject;
         //fix vertex indices...
         for (auto& geom : json["CityObjects"][id]["geometry"]) {
-          set_vertex_index_offset(geom["boundaries"], vindex_offset);
+          set_vertex_index_offset(geom, vindex_offset);
           // std::cout<<boundaries<< std::endl;
         }
       }
