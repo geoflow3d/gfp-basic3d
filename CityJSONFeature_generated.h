@@ -25,11 +25,14 @@ struct CityJSONFeatureBuilder;
 struct CityObject;
 struct CityObjectBuilder;
 
-struct MultiSurface;
-struct MultiSurfaceBuilder;
+struct Geometry;
+struct GeometryBuilder;
 
-struct Solid;
-struct SolidBuilder;
+struct gMultiSurface;
+struct gMultiSurfaceBuilder;
+
+struct gSolid;
+struct gSolidBuilder;
 
 struct gShell;
 struct gShellBuilder;
@@ -37,8 +40,8 @@ struct gShellBuilder;
 struct gSurface;
 struct gSurfaceBuilder;
 
-struct gBoundary;
-struct gBoundaryBuilder;
+struct gRing;
+struct gRingBuilder;
 
 struct Semantic;
 struct SemanticBuilder;
@@ -76,67 +79,79 @@ inline const char *EnumNameCityObjectType(CityObjectType e) {
   return EnumNamesCityObjectType()[index];
 }
 
-enum Geometry : uint8_t {
-  Geometry_NONE = 0,
-  Geometry_Solid = 1,
-  Geometry_MultiSurface = 2,
-  Geometry_MIN = Geometry_NONE,
-  Geometry_MAX = Geometry_MultiSurface
+enum Boundary : uint8_t {
+  Boundary_NONE = 0,
+  Boundary_gSolid = 1,
+  Boundary_gMultiSurface = 2,
+  Boundary_MIN = Boundary_NONE,
+  Boundary_MAX = Boundary_gMultiSurface
 };
 
-inline const Geometry (&EnumValuesGeometry())[3] {
-  static const Geometry values[] = {
-    Geometry_NONE,
-    Geometry_Solid,
-    Geometry_MultiSurface
+inline const Boundary (&EnumValuesBoundary())[3] {
+  static const Boundary values[] = {
+    Boundary_NONE,
+    Boundary_gSolid,
+    Boundary_gMultiSurface
   };
   return values;
 }
 
-inline const char * const *EnumNamesGeometry() {
+inline const char * const *EnumNamesBoundary() {
   static const char * const names[4] = {
     "NONE",
-    "Solid",
-    "MultiSurface",
+    "gSolid",
+    "gMultiSurface",
     nullptr
   };
   return names;
 }
 
-inline const char *EnumNameGeometry(Geometry e) {
-  if (flatbuffers::IsOutRange(e, Geometry_NONE, Geometry_MultiSurface)) return "";
+inline const char *EnumNameBoundary(Boundary e) {
+  if (flatbuffers::IsOutRange(e, Boundary_NONE, Boundary_gMultiSurface)) return "";
   const size_t index = static_cast<size_t>(e);
-  return EnumNamesGeometry()[index];
+  return EnumNamesBoundary()[index];
 }
 
-template<typename T> struct GeometryTraits {
-  static const Geometry enum_value = Geometry_NONE;
+template<typename T> struct BoundaryTraits {
+  static const Boundary enum_value = Boundary_NONE;
 };
 
-template<> struct GeometryTraits<CityFB::Solid> {
-  static const Geometry enum_value = Geometry_Solid;
+template<> struct BoundaryTraits<CityFB::gSolid> {
+  static const Boundary enum_value = Boundary_gSolid;
 };
 
-template<> struct GeometryTraits<CityFB::MultiSurface> {
-  static const Geometry enum_value = Geometry_MultiSurface;
+template<> struct BoundaryTraits<CityFB::gMultiSurface> {
+  static const Boundary enum_value = Boundary_gMultiSurface;
 };
 
-bool VerifyGeometry(flatbuffers::Verifier &verifier, const void *obj, Geometry type);
-bool VerifyGeometryVector(flatbuffers::Verifier &verifier, const flatbuffers::Vector<flatbuffers::Offset<void>> *values, const flatbuffers::Vector<uint8_t> *types);
+bool VerifyBoundary(flatbuffers::Verifier &verifier, const void *obj, Boundary type);
+bool VerifyBoundaryVector(flatbuffers::Verifier &verifier, const flatbuffers::Vector<flatbuffers::Offset<void>> *values, const flatbuffers::Vector<uint8_t> *types);
 
 FLATBUFFERS_MANUALLY_ALIGNED_STRUCT(4) Vertex FLATBUFFERS_FINAL_CLASS {
  private:
-  uint32_t v_[3];
+  uint32_t x_;
+  uint32_t y_;
+  uint32_t z_;
 
  public:
   Vertex()
-      : v_() {
+      : x_(0),
+        y_(0),
+        z_(0) {
   }
-  Vertex(flatbuffers::span<const uint32_t, 3> _v) {
-    flatbuffers::CastToArray(v_).CopyFromSpan(_v);
+  Vertex(uint32_t _x, uint32_t _y, uint32_t _z)
+      : x_(flatbuffers::EndianScalar(_x)),
+        y_(flatbuffers::EndianScalar(_y)),
+        z_(flatbuffers::EndianScalar(_z)) {
   }
-  const flatbuffers::Array<uint32_t, 3> *v() const {
-    return &flatbuffers::CastToArray(v_);
+  uint32_t x() const {
+    return flatbuffers::EndianScalar(x_);
+  }
+  uint32_t y() const {
+    return flatbuffers::EndianScalar(y_);
+  }
+  uint32_t z() const {
+    return flatbuffers::EndianScalar(z_);
   }
 };
 FLATBUFFERS_STRUCT_END(Vertex, 12);
@@ -227,10 +242,9 @@ struct CityObject FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_TYPE = 4,
     VT_ID = 6,
     VT_ATTRIBUTES = 8,
-    VT_GEOMETRY_TYPE = 10,
-    VT_GEOMETRY = 12,
-    VT_CHILDREN = 14,
-    VT_PARENT = 16
+    VT_GEOMETRY = 10,
+    VT_CHILDREN = 12,
+    VT_PARENT = 14
   };
   CityFB::CityObjectType type() const {
     return static_cast<CityFB::CityObjectType>(GetField<int16_t>(VT_TYPE, 0));
@@ -250,11 +264,8 @@ struct CityObject FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   flexbuffers::Reference attributes_flexbuffer_root() const {
     return flexbuffers::GetRoot(attributes()->Data(), attributes()->size());
   }
-  const flatbuffers::Vector<uint8_t> *geometry_type() const {
-    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_GEOMETRY_TYPE);
-  }
-  const flatbuffers::Vector<flatbuffers::Offset<void>> *geometry() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<void>> *>(VT_GEOMETRY);
+  const flatbuffers::Vector<flatbuffers::Offset<CityFB::Geometry>> *geometry() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::Geometry>> *>(VT_GEOMETRY);
   }
   const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *children() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *>(VT_CHILDREN);
@@ -270,11 +281,9 @@ struct CityObject FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyOffset(verifier, VT_ATTRIBUTES) &&
            verifier.VerifyVector(attributes()) &&
            flexbuffers::VerifyNestedFlexBuffer(attributes(), verifier) &&
-           VerifyOffset(verifier, VT_GEOMETRY_TYPE) &&
-           verifier.VerifyVector(geometry_type()) &&
            VerifyOffset(verifier, VT_GEOMETRY) &&
            verifier.VerifyVector(geometry()) &&
-           VerifyGeometryVector(verifier, geometry(), geometry_type()) &&
+           verifier.VerifyVectorOfTables(geometry()) &&
            VerifyOffset(verifier, VT_CHILDREN) &&
            verifier.VerifyVector(children()) &&
            verifier.VerifyVectorOfStrings(children()) &&
@@ -297,10 +306,7 @@ struct CityObjectBuilder {
   void add_attributes(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> attributes) {
     fbb_.AddOffset(CityObject::VT_ATTRIBUTES, attributes);
   }
-  void add_geometry_type(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> geometry_type) {
-    fbb_.AddOffset(CityObject::VT_GEOMETRY_TYPE, geometry_type);
-  }
-  void add_geometry(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> geometry) {
+  void add_geometry(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Geometry>>> geometry) {
     fbb_.AddOffset(CityObject::VT_GEOMETRY, geometry);
   }
   void add_children(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> children) {
@@ -326,15 +332,13 @@ inline flatbuffers::Offset<CityObject> CreateCityObject(
     CityFB::CityObjectType type = CityFB::CityObjectType_Building,
     flatbuffers::Offset<flatbuffers::String> id = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> attributes = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> geometry_type = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> geometry = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Geometry>>> geometry = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> children = 0,
     flatbuffers::Offset<flatbuffers::String> parent = 0) {
   CityObjectBuilder builder_(_fbb);
   builder_.add_parent(parent);
   builder_.add_children(children);
   builder_.add_geometry(geometry);
-  builder_.add_geometry_type(geometry_type);
   builder_.add_attributes(attributes);
   builder_.add_id(id);
   builder_.add_type(type);
@@ -346,14 +350,12 @@ inline flatbuffers::Offset<CityObject> CreateCityObjectDirect(
     CityFB::CityObjectType type = CityFB::CityObjectType_Building,
     const char *id = nullptr,
     const std::vector<uint8_t> *attributes = nullptr,
-    const std::vector<uint8_t> *geometry_type = nullptr,
-    const std::vector<flatbuffers::Offset<void>> *geometry = nullptr,
+    const std::vector<flatbuffers::Offset<CityFB::Geometry>> *geometry = nullptr,
     const std::vector<flatbuffers::Offset<flatbuffers::String>> *children = nullptr,
     const char *parent = nullptr) {
   auto id__ = id ? _fbb.CreateString(id) : 0;
   auto attributes__ = attributes ? _fbb.CreateVector<uint8_t>(*attributes) : 0;
-  auto geometry_type__ = geometry_type ? _fbb.CreateVector<uint8_t>(*geometry_type) : 0;
-  auto geometry__ = geometry ? _fbb.CreateVector<flatbuffers::Offset<void>>(*geometry) : 0;
+  auto geometry__ = geometry ? _fbb.CreateVector<flatbuffers::Offset<CityFB::Geometry>>(*geometry) : 0;
   auto children__ = children ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*children) : 0;
   auto parent__ = parent ? _fbb.CreateString(parent) : 0;
   return CityFB::CreateCityObject(
@@ -361,172 +363,208 @@ inline flatbuffers::Offset<CityObject> CreateCityObjectDirect(
       type,
       id__,
       attributes__,
-      geometry_type__,
       geometry__,
       children__,
       parent__);
 }
 
-struct MultiSurface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  typedef MultiSurfaceBuilder Builder;
+struct Geometry FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  typedef GeometryBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_LOD = 4,
-    VT_SEMANTICS = 6,
-    VT_BOUNDARIES = 8
+    VT_BOUNDARIES_TYPE = 6,
+    VT_BOUNDARIES = 8,
+    VT_SEMANTICS = 10
   };
   const flatbuffers::String *lod() const {
     return GetPointer<const flatbuffers::String *>(VT_LOD);
   }
+  const flatbuffers::Vector<uint8_t> *boundaries_type() const {
+    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_BOUNDARIES_TYPE);
+  }
+  const flatbuffers::Vector<flatbuffers::Offset<void>> *boundaries() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<void>> *>(VT_BOUNDARIES);
+  }
   const flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>> *semantics() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>> *>(VT_SEMANTICS);
-  }
-  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>> *boundaries() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>> *>(VT_BOUNDARIES);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_LOD) &&
            verifier.VerifyString(lod()) &&
+           VerifyOffset(verifier, VT_BOUNDARIES_TYPE) &&
+           verifier.VerifyVector(boundaries_type()) &&
+           VerifyOffset(verifier, VT_BOUNDARIES) &&
+           verifier.VerifyVector(boundaries()) &&
+           VerifyBoundaryVector(verifier, boundaries(), boundaries_type()) &&
            VerifyOffset(verifier, VT_SEMANTICS) &&
            verifier.VerifyVector(semantics()) &&
            verifier.VerifyVectorOfTables(semantics()) &&
-           VerifyOffset(verifier, VT_BOUNDARIES) &&
-           verifier.VerifyVector(boundaries()) &&
-           verifier.VerifyVectorOfTables(boundaries()) &&
            verifier.EndTable();
   }
 };
 
-struct MultiSurfaceBuilder {
-  typedef MultiSurface Table;
+struct GeometryBuilder {
+  typedef Geometry Table;
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
   void add_lod(flatbuffers::Offset<flatbuffers::String> lod) {
-    fbb_.AddOffset(MultiSurface::VT_LOD, lod);
+    fbb_.AddOffset(Geometry::VT_LOD, lod);
+  }
+  void add_boundaries_type(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> boundaries_type) {
+    fbb_.AddOffset(Geometry::VT_BOUNDARIES_TYPE, boundaries_type);
+  }
+  void add_boundaries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> boundaries) {
+    fbb_.AddOffset(Geometry::VT_BOUNDARIES, boundaries);
   }
   void add_semantics(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>>> semantics) {
-    fbb_.AddOffset(MultiSurface::VT_SEMANTICS, semantics);
+    fbb_.AddOffset(Geometry::VT_SEMANTICS, semantics);
   }
-  void add_boundaries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>>> boundaries) {
-    fbb_.AddOffset(MultiSurface::VT_BOUNDARIES, boundaries);
-  }
-  explicit MultiSurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit GeometryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  flatbuffers::Offset<MultiSurface> Finish() {
+  flatbuffers::Offset<Geometry> Finish() {
     const auto end = fbb_.EndTable(start_);
-    auto o = flatbuffers::Offset<MultiSurface>(end);
+    auto o = flatbuffers::Offset<Geometry>(end);
     return o;
   }
 };
 
-inline flatbuffers::Offset<MultiSurface> CreateMultiSurface(
+inline flatbuffers::Offset<Geometry> CreateGeometry(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> lod = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>>> semantics = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>>> boundaries = 0) {
-  MultiSurfaceBuilder builder_(_fbb);
-  builder_.add_boundaries(boundaries);
+    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> boundaries_type = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> boundaries = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>>> semantics = 0) {
+  GeometryBuilder builder_(_fbb);
   builder_.add_semantics(semantics);
+  builder_.add_boundaries(boundaries);
+  builder_.add_boundaries_type(boundaries_type);
   builder_.add_lod(lod);
   return builder_.Finish();
 }
 
-inline flatbuffers::Offset<MultiSurface> CreateMultiSurfaceDirect(
+inline flatbuffers::Offset<Geometry> CreateGeometryDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *lod = nullptr,
-    const std::vector<flatbuffers::Offset<CityFB::Semantic>> *semantics = nullptr,
-    const std::vector<flatbuffers::Offset<CityFB::gSurface>> *boundaries = nullptr) {
+    const std::vector<uint8_t> *boundaries_type = nullptr,
+    const std::vector<flatbuffers::Offset<void>> *boundaries = nullptr,
+    const std::vector<flatbuffers::Offset<CityFB::Semantic>> *semantics = nullptr) {
   auto lod__ = lod ? _fbb.CreateString(lod) : 0;
+  auto boundaries_type__ = boundaries_type ? _fbb.CreateVector<uint8_t>(*boundaries_type) : 0;
+  auto boundaries__ = boundaries ? _fbb.CreateVector<flatbuffers::Offset<void>>(*boundaries) : 0;
   auto semantics__ = semantics ? _fbb.CreateVector<flatbuffers::Offset<CityFB::Semantic>>(*semantics) : 0;
-  auto boundaries__ = boundaries ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gSurface>>(*boundaries) : 0;
-  return CityFB::CreateMultiSurface(
+  return CityFB::CreateGeometry(
       _fbb,
       lod__,
-      semantics__,
-      boundaries__);
+      boundaries_type__,
+      boundaries__,
+      semantics__);
 }
 
-struct Solid FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  typedef SolidBuilder Builder;
+struct gMultiSurface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  typedef gMultiSurfaceBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_LOD = 4,
-    VT_SEMANTICS = 6,
-    VT_BOUNDARIES = 8
+    VT_SURFACES = 4
   };
-  const flatbuffers::String *lod() const {
-    return GetPointer<const flatbuffers::String *>(VT_LOD);
-  }
-  const flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>> *semantics() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>> *>(VT_SEMANTICS);
-  }
-  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>> *boundaries() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>> *>(VT_BOUNDARIES);
+  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>> *surfaces() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>> *>(VT_SURFACES);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyOffset(verifier, VT_LOD) &&
-           verifier.VerifyString(lod()) &&
-           VerifyOffset(verifier, VT_SEMANTICS) &&
-           verifier.VerifyVector(semantics()) &&
-           verifier.VerifyVectorOfTables(semantics()) &&
-           VerifyOffset(verifier, VT_BOUNDARIES) &&
-           verifier.VerifyVector(boundaries()) &&
-           verifier.VerifyVectorOfTables(boundaries()) &&
+           VerifyOffset(verifier, VT_SURFACES) &&
+           verifier.VerifyVector(surfaces()) &&
+           verifier.VerifyVectorOfTables(surfaces()) &&
            verifier.EndTable();
   }
 };
 
-struct SolidBuilder {
-  typedef Solid Table;
+struct gMultiSurfaceBuilder {
+  typedef gMultiSurface Table;
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_lod(flatbuffers::Offset<flatbuffers::String> lod) {
-    fbb_.AddOffset(Solid::VT_LOD, lod);
+  void add_surfaces(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>>> surfaces) {
+    fbb_.AddOffset(gMultiSurface::VT_SURFACES, surfaces);
   }
-  void add_semantics(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>>> semantics) {
-    fbb_.AddOffset(Solid::VT_SEMANTICS, semantics);
-  }
-  void add_boundaries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>>> boundaries) {
-    fbb_.AddOffset(Solid::VT_BOUNDARIES, boundaries);
-  }
-  explicit SolidBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit gMultiSurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  flatbuffers::Offset<Solid> Finish() {
+  flatbuffers::Offset<gMultiSurface> Finish() {
     const auto end = fbb_.EndTable(start_);
-    auto o = flatbuffers::Offset<Solid>(end);
+    auto o = flatbuffers::Offset<gMultiSurface>(end);
     return o;
   }
 };
 
-inline flatbuffers::Offset<Solid> CreateSolid(
+inline flatbuffers::Offset<gMultiSurface> CreategMultiSurface(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::String> lod = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::Semantic>>> semantics = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>>> boundaries = 0) {
-  SolidBuilder builder_(_fbb);
-  builder_.add_boundaries(boundaries);
-  builder_.add_semantics(semantics);
-  builder_.add_lod(lod);
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gSurface>>> surfaces = 0) {
+  gMultiSurfaceBuilder builder_(_fbb);
+  builder_.add_surfaces(surfaces);
   return builder_.Finish();
 }
 
-inline flatbuffers::Offset<Solid> CreateSolidDirect(
+inline flatbuffers::Offset<gMultiSurface> CreategMultiSurfaceDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const char *lod = nullptr,
-    const std::vector<flatbuffers::Offset<CityFB::Semantic>> *semantics = nullptr,
-    const std::vector<flatbuffers::Offset<CityFB::gShell>> *boundaries = nullptr) {
-  auto lod__ = lod ? _fbb.CreateString(lod) : 0;
-  auto semantics__ = semantics ? _fbb.CreateVector<flatbuffers::Offset<CityFB::Semantic>>(*semantics) : 0;
-  auto boundaries__ = boundaries ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gShell>>(*boundaries) : 0;
-  return CityFB::CreateSolid(
+    const std::vector<flatbuffers::Offset<CityFB::gSurface>> *surfaces = nullptr) {
+  auto surfaces__ = surfaces ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gSurface>>(*surfaces) : 0;
+  return CityFB::CreategMultiSurface(
       _fbb,
-      lod__,
-      semantics__,
-      boundaries__);
+      surfaces__);
+}
+
+struct gSolid FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  typedef gSolidBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_SHELLS = 4
+  };
+  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>> *shells() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>> *>(VT_SHELLS);
+  }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_SHELLS) &&
+           verifier.VerifyVector(shells()) &&
+           verifier.VerifyVectorOfTables(shells()) &&
+           verifier.EndTable();
+  }
+};
+
+struct gSolidBuilder {
+  typedef gSolid Table;
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_shells(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>>> shells) {
+    fbb_.AddOffset(gSolid::VT_SHELLS, shells);
+  }
+  explicit gSolidBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  flatbuffers::Offset<gSolid> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = flatbuffers::Offset<gSolid>(end);
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<gSolid> CreategSolid(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gShell>>> shells = 0) {
+  gSolidBuilder builder_(_fbb);
+  builder_.add_shells(shells);
+  return builder_.Finish();
+}
+
+inline flatbuffers::Offset<gSolid> CreategSolidDirect(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    const std::vector<flatbuffers::Offset<CityFB::gShell>> *shells = nullptr) {
+  auto shells__ = shells ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gShell>>(*shells) : 0;
+  return CityFB::CreategSolid(
+      _fbb,
+      shells__);
 }
 
 struct gShell FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -584,16 +622,16 @@ inline flatbuffers::Offset<gShell> CreategShellDirect(
 struct gSurface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   typedef gSurfaceBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_BOUNDARIES = 4
+    VT_RINGS = 4
   };
-  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gBoundary>> *boundaries() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gBoundary>> *>(VT_BOUNDARIES);
+  const flatbuffers::Vector<flatbuffers::Offset<CityFB::gRing>> *rings() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<CityFB::gRing>> *>(VT_RINGS);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyOffset(verifier, VT_BOUNDARIES) &&
-           verifier.VerifyVector(boundaries()) &&
-           verifier.VerifyVectorOfTables(boundaries()) &&
+           VerifyOffset(verifier, VT_RINGS) &&
+           verifier.VerifyVector(rings()) &&
+           verifier.VerifyVectorOfTables(rings()) &&
            verifier.EndTable();
   }
 };
@@ -602,8 +640,8 @@ struct gSurfaceBuilder {
   typedef gSurface Table;
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_boundaries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gBoundary>>> boundaries) {
-    fbb_.AddOffset(gSurface::VT_BOUNDARIES, boundaries);
+  void add_rings(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gRing>>> rings) {
+    fbb_.AddOffset(gSurface::VT_RINGS, rings);
   }
   explicit gSurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -618,23 +656,23 @@ struct gSurfaceBuilder {
 
 inline flatbuffers::Offset<gSurface> CreategSurface(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gBoundary>>> boundaries = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<CityFB::gRing>>> rings = 0) {
   gSurfaceBuilder builder_(_fbb);
-  builder_.add_boundaries(boundaries);
+  builder_.add_rings(rings);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<gSurface> CreategSurfaceDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<CityFB::gBoundary>> *boundaries = nullptr) {
-  auto boundaries__ = boundaries ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gBoundary>>(*boundaries) : 0;
+    const std::vector<flatbuffers::Offset<CityFB::gRing>> *rings = nullptr) {
+  auto rings__ = rings ? _fbb.CreateVector<flatbuffers::Offset<CityFB::gRing>>(*rings) : 0;
   return CityFB::CreategSurface(
       _fbb,
-      boundaries__);
+      rings__);
 }
 
-struct gBoundary FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  typedef gBoundaryBuilder Builder;
+struct gRing FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  typedef gRingBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_INDICES = 4
   };
@@ -649,37 +687,37 @@ struct gBoundary FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
 };
 
-struct gBoundaryBuilder {
-  typedef gBoundary Table;
+struct gRingBuilder {
+  typedef gRing Table;
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
   void add_indices(flatbuffers::Offset<flatbuffers::Vector<uint32_t>> indices) {
-    fbb_.AddOffset(gBoundary::VT_INDICES, indices);
+    fbb_.AddOffset(gRing::VT_INDICES, indices);
   }
-  explicit gBoundaryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit gRingBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  flatbuffers::Offset<gBoundary> Finish() {
+  flatbuffers::Offset<gRing> Finish() {
     const auto end = fbb_.EndTable(start_);
-    auto o = flatbuffers::Offset<gBoundary>(end);
+    auto o = flatbuffers::Offset<gRing>(end);
     return o;
   }
 };
 
-inline flatbuffers::Offset<gBoundary> CreategBoundary(
+inline flatbuffers::Offset<gRing> CreategRing(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::Vector<uint32_t>> indices = 0) {
-  gBoundaryBuilder builder_(_fbb);
+  gRingBuilder builder_(_fbb);
   builder_.add_indices(indices);
   return builder_.Finish();
 }
 
-inline flatbuffers::Offset<gBoundary> CreategBoundaryDirect(
+inline flatbuffers::Offset<gRing> CreategRingDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const std::vector<uint32_t> *indices = nullptr) {
   auto indices__ = indices ? _fbb.CreateVector<uint32_t>(*indices) : 0;
-  return CityFB::CreategBoundary(
+  return CityFB::CreategRing(
       _fbb,
       indices__);
 }
@@ -813,29 +851,29 @@ inline flatbuffers::Offset<Surface> CreateSurfaceDirect(
       on_footprint_edge);
 }
 
-inline bool VerifyGeometry(flatbuffers::Verifier &verifier, const void *obj, Geometry type) {
+inline bool VerifyBoundary(flatbuffers::Verifier &verifier, const void *obj, Boundary type) {
   switch (type) {
-    case Geometry_NONE: {
+    case Boundary_NONE: {
       return true;
     }
-    case Geometry_Solid: {
-      auto ptr = reinterpret_cast<const CityFB::Solid *>(obj);
+    case Boundary_gSolid: {
+      auto ptr = reinterpret_cast<const CityFB::gSolid *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case Geometry_MultiSurface: {
-      auto ptr = reinterpret_cast<const CityFB::MultiSurface *>(obj);
+    case Boundary_gMultiSurface: {
+      auto ptr = reinterpret_cast<const CityFB::gMultiSurface *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;
   }
 }
 
-inline bool VerifyGeometryVector(flatbuffers::Verifier &verifier, const flatbuffers::Vector<flatbuffers::Offset<void>> *values, const flatbuffers::Vector<uint8_t> *types) {
+inline bool VerifyBoundaryVector(flatbuffers::Verifier &verifier, const flatbuffers::Vector<flatbuffers::Offset<void>> *values, const flatbuffers::Vector<uint8_t> *types) {
   if (!values || !types) return !values && !types;
   if (values->size() != types->size()) return false;
   for (flatbuffers::uoffset_t i = 0; i < values->size(); ++i) {
-    if (!VerifyGeometry(
-        verifier,  values->Get(i), types->GetEnum<Geometry>(i))) {
+    if (!VerifyBoundary(
+        verifier,  values->Get(i), types->GetEnum<Boundary>(i))) {
       return false;
     }
   }

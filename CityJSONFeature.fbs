@@ -1,10 +1,13 @@
 namespace CityFB;
 
 enum CityObjectType:short { Building, BuildingPart }
-union Geometry { Solid, MultiSurface }
+// enum GeometryType:short { MultiSurface, Solid }
+union Boundary { gSolid, gMultiSurface }
 
 struct Vertex {
-  v:[uint:3];
+  x:uint;
+  y:uint;
+  z:uint;
 }
 
 table CityJSONFeature {
@@ -22,16 +25,20 @@ table CityObject {
   parent:string;
 }
 
-table MultiSurface {
+table Geometry {
   lod:string;
+  // type:GeometryType;
+  // boundaries:[ubyte] (flexbuffer);
+  boundaries:[Boundary];
   semantics: [Semantic];
-  boundaries:[gSurface];
 }
 
-table Solid {
-  lod:string;
-  semantics: [Semantic];
-  boundaries:[gShell];
+table gMultiSurface {
+  surfaces:[gSurface];
+}
+
+table gSolid {
+  shells:[gShell];
 }
 
 table gShell {
@@ -39,10 +46,10 @@ table gShell {
 }
 
 table gSurface {
-  boundaries:[gBoundary];
+  rings:[gRing];
 }
 
-table gBoundary {
+table gRing {
   indices:[uint];
 }
 
