@@ -302,6 +302,25 @@ public:
   void process() override;
 };
 
+class CityFBFeatureWriterNode : public Node {
+
+  // parameter variables
+  std::string filepath_;
+
+public:
+  using Node::Node;
+
+  void init() override {
+    // declare ouput terminals
+    add_vector_input("CityJSONFeature", typeid(nlohmann::json));
+
+    // declare parameters
+    add_param(ParamPath(filepath_, "filepath", "File path"));
+  }
+
+  void process() override;
+};
+
 class CityJSONFeatureMetadataWriterNode : public Node {
   float scale_x_ = 0.001;
   float scale_y_ = 0.001;

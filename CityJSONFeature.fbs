@@ -1,12 +1,62 @@
 namespace CityFB;
 
-enum FileType { CityJSONFeature }
-union CityObject { Building }
-union Geometry { Monster, Weapon, Pickup }
+enum CityObjectType:short { Building, BuildingPart }
+union Geometry { Solid, MultiSurface }
+
+struct Vertex {
+  v:[uint:3];
+}
 
 table CityJSONFeature {
-  type:FileType;
   id:string;
-  CityObjects:
-  vertices:
+  city_objects:[CityObject];
+  vertices:[Vertex];
 }
+
+table CityObject {
+  type:CityObjectType;
+  id:string (key);
+  attributes:[ubyte] (flexbuffer);
+  geometry:[Geometry];
+  children:[string];
+  parent:string;
+}
+
+table MultiSurface {
+  lod:string;
+  semantics: [Semantic];
+  boundaries:[gSurface];
+}
+
+table Solid {
+  lod:string;
+  semantics: [Semantic];
+  boundaries:[gShell];
+}
+
+table gShell {
+  surfaces:[gSurface];
+}
+
+table gSurface {
+  boundaries:[gBoundary];
+}
+
+table gBoundary {
+  indices:[uint];
+}
+
+table Semantic {
+  surfaces:[Surface];
+  values:[uint];
+}
+
+table Surface {
+  type:string;
+  on_footprint_edge:bool;
+  // attributes:[ubyte] (flexbuffer);
+}
+
+root_type CityJSONFeature;
+file_identifier "CFBF";
+file_extension "city.fb";

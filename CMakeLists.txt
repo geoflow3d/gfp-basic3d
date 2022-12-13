@@ -7,6 +7,9 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 find_package(nlohmann_json 3.10.5 CONFIG REQUIRED)
+include_directories(
+  ${PROJECT_SOURCE_DIR}/thirdparty/include
+)
 
 set(GF_PLUGIN_NAME ${PROJECT_NAME})
 set(GF_PLUGIN_TARGET_NAME "gfp_core_io")
@@ -15,6 +18,7 @@ geoflow_create_plugin(
   nodes_obj.cpp
   nodes_ply.cpp
   nodes_cityjson.cpp
+  nodes_cityfb.cpp
 )
 
 target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json)
