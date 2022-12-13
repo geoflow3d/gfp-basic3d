@@ -2,7 +2,7 @@ namespace CityFB;
 
 enum CityObjectType:short { Building, BuildingPart }
 // enum GeometryType:short { MultiSurface, Solid }
-union Boundary { gSolid, gMultiSurface }
+union Boundaries { Solid, MultiSurface }
 
 struct Vertex {
   x:uint;
@@ -29,36 +29,36 @@ table Geometry {
   lod:string;
   // type:GeometryType;
   // boundaries:[ubyte] (flexbuffer);
-  boundaries:[Boundary];
-  semantics: [Semantic];
+  boundaries:Boundaries;
+  semantics:GeometrySemantics;
 }
 
-table gMultiSurface {
-  surfaces:[gSurface];
-}
-
-table gSolid {
-  shells:[gShell];
-}
-
-table gShell {
-  surfaces:[gSurface];
-}
-
-table gSurface {
-  rings:[gRing];
-}
-
-table gRing {
-  indices:[uint];
-}
-
-table Semantic {
+table MultiSurface {
   surfaces:[Surface];
-  values:[uint];
+}
+
+table Solid {
+  shells:[Shell];
+}
+
+table Shell {
+  surfaces:[Surface];
 }
 
 table Surface {
+  rings:[Ring];
+}
+
+table Ring {
+  indices:[uint];
+}
+
+table GeometrySemantics {
+  surfaces:[SemanticSurface];
+  values:[uint];
+}
+
+table SemanticSurface {
   type:string;
   on_footprint_edge:bool;
   // attributes:[ubyte] (flexbuffer);
