@@ -384,14 +384,48 @@ public:
   using Node::Node;
 
   void init() override {
-    add_input("first_line", typeid(nlohmann::json));
-    add_vector_input("features", typeid(nlohmann::json));
+    add_input("first_line", typeid(std::string));
+    add_vector_input("features", typeid(std::string));
 
     // declare parameters
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamPath(filepath_, "filepath", "File path"));
   }
 
+  void process() override;
+};
+
+class CityJSONL2MeshNode : public Node {
+  // parameter variables
+
+public:
+  using Node::Node;
+
+  void init() override {
+    add_input("jsonl_metadata_str", typeid(std::string));
+    add_vector_input("jsonl_features_str", typeid(std::string));
+    add_vector_output("meshes", typeid(Mesh));
+    add_poly_output("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+
+    // declare parameters
+  }
+
+  void process() override;
+};
+
+class Mesh2CityGMLWriterNode:public Node {
+  static const int FLOOR=0, ROOF=1, OUTERWALL=2, INNERWALL=3;
+  public:
+  using Node::Node;
+  std::string filepath_;
+
+  void init() override {
+    add_vector_input("mesh", typeid(Mesh));
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+
+
+    add_param(ParamPath(filepath_, "filepath",  "filepath"));   
+  }
   void process() override;
 };
 

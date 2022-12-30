@@ -16,6 +16,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "nodes.hpp"
 #include <ctime>
+#include <regex>
 #include <nlohmann/json.hpp>
 
 namespace geoflow::nodes::basic3d
@@ -576,6 +577,7 @@ namespace geoflow::nodes::basic3d
     nlohmann::json json;
     try {
       inputStream >> json;
+      inputStream.close();
     } catch (const std::exception& e) {
       throw(gfIOError(e.what()));
     }
@@ -592,41 +594,180 @@ namespace geoflow::nodes::basic3d
     }
   }
   void set_vertex_index_offset(nlohmann::json& geometry, const size_t& offset) {
+    // std::cout<<offset<< std::endl;
+    
+    // std::cout<<geometry<< std::endl;
     if(offset==0) return;
-    std::cout<<geometry<< std::endl;
-
     offset_indices(geometry["boundaries"], offset);
+    // std::cout<<geometry<< std::endl;
   }
 
   void CityJSONLinesWriterNode::process() {
-    auto json = input("first_line").get<nlohmann::json>();
+    auto jsonstr = input("first_line").get<std::string>();
+    nlohmann::json metajson;
+    try {
+      metajson = nlohmann::json::parse(jsonstr);
+    } catch (const std::exception& e) {
+      throw(gfIOError(e.what()));
+    }
     auto& features_inp = vector_input("features");
 
     size_t vindex_offset = 0;
     for (size_t i=0; i< features_inp.size(); ++i) {
-      auto& feature = features_inp.get<nlohmann::json>(i);
+      // std::cout<< "FI:" << i<< std::endl;
+      auto& featurestr = features_inp.get<std::string>(i);
+      if (featurestr.size()==0) {
+        std::cout << "empty feature string for feature; skipping...\n";
+        continue;
+      }
+      // std::cout<< featurestr << std::endl;
+      nlohmann::json feature;
+      try {
+        feature = nlohmann::json::parse(featurestr);
+      } catch (const std::exception& e) {
+        throw(gfIOError(e.what()));
+      }
       
       if(feature["type"] != "CityJSONFeature") {
         throw(gfException("input is not CityJSONFeature"));
       }
 
       for( auto [id, cobject] : feature["CityObjects"].items() ) {
-        
-        json["CityObjects"][id] = cobject;
+        // std::cout<< "CID:" << id << std::endl;
+        // std::cout<< "vertex_count:" << cobject[]<< std::endl;
+
+        metajson["CityObjects"][id] = cobject;
         //fix vertex indices...
-        for (auto& geom : json["CityObjects"][id]["geometry"]) {
+        for (auto& geom : metajson["CityObjects"][id]["geometry"]) {
           set_vertex_index_offset(geom, vindex_offset);
           // std::cout<<boundaries<< std::endl;
         }
       }
       // std::cout << json << std::endl;
-      // std::cout << feature << std::endl;
-      json["vertices"].insert(json["vertices"].end(), feature["vertices"].begin(), feature["vertices"].end());
-      vindex_offset = json["vertices"].size();
+      metajson["vertices"].insert(metajson["vertices"].end(), feature["vertices"].begin(), feature["vertices"].end());
+      // std::cout << json["vertices"] << std::endl;
+      vindex_offset = metajson["vertices"].size();
     }
 
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
-    CityJSON::write_to_file(json, fname, prettyPrint_);
+    CityJSON::write_to_file(metajson, fname, prettyPrint_);
+  }
+
+  void CityJSONL2MeshNode::process() {
+    auto jsonstr = input("jsonl_metadata_str").get<std::string>();
+    nlohmann::json metajson;
+    try {
+      metajson = nlohmann::json::parse(jsonstr);
+    } catch (const std::exception& e) {
+      throw(gfIOError(e.what()));
+    }
+    auto& features_inp = vector_input("jsonl_features_str");
+
+    std::vector<double> jtranslate = metajson["transform"]["translate"];
+    std::vector<double> jscale = metajson["transform"]["scale"];
+    std::string referenceSystem = metajson["metadata"]["referenceSystem"];
+    std::string epsg_code;
+
+    std::regex re("\\d+$");
+    std::smatch m;
+    std::cout<< referenceSystem << std::endl;
+    if(std::regex_search(referenceSystem, m, re)) {
+      epsg_code = "EPSG:" + m[0].str();
+      manager.set_fwd_crs_transform(epsg_code.c_str());
+    } else {
+      throw(gfException("CRS not detected"));
+    }
+
+    // size_t vindex_offset = 0;
+    auto& meshes = vector_output("meshes");
+    auto& attributes = poly_output("attributes");
+    for (size_t i=0; i< features_inp.size(); ++i) {
+      // std::cout<< "FI:" << i<< std::endl;
+      auto& featurestr = features_inp.get<std::string>(i);
+      if (featurestr.size()==0) {
+        std::cout << "empty feature string for feature; skipping...\n";
+        continue;
+      }
+      // std::cout<< featurestr << std::endl;
+      nlohmann::json feature;
+      try {
+        feature = nlohmann::json::parse(featurestr);
+      } catch (const std::exception& e) {
+        throw(gfIOError(e.what()));
+      }
+      
+      if(feature["type"] != "CityJSONFeature") {
+        throw(gfException("input is not CityJSONFeature"));
+      }
+
+      std::string optimal_lod;
+      for( auto [id, cobject] : feature["CityObjects"].items() ) {
+        // std::cout<< "CID:" << id << std::endl;
+        // std::cout<< "vertex_count:" << cobject[]<< std::endl;
+
+        if (cobject["type"] == "Building") {
+          optimal_lod = cobject["attributes"]["optimal_lod"];
+
+          size_t n_children = cobject["children"].size();
+          // get_attributes
+          for(auto& [jname, jval] : cobject["attributes"].items()) {
+            if(jval.is_string()) {
+              if (!attributes.has_sub_terminal(jname)) {
+                attributes.add_vector(jname, typeid(std::string));
+              }
+              for (size_t i=0; i<n_children; ++i)
+                attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+            } else if (jval.is_number()) {
+              if (!attributes.has_sub_terminal(jname)) {
+                attributes.add_vector(jname, typeid(float));
+              }
+              for (size_t i=0; i<n_children; ++i)
+                attributes.sub_terminal(jname).push_back(jval.get<float>());
+            }
+          }
+        }
+      }
+
+      std::vector<std::vector<double>> vertices = feature["vertices"];
+      
+      for( auto [id, cobject] : feature["CityObjects"].items() ) {
+        // std::cout<< "CID:" << id << std::endl;
+        // std::cout<< "vertex_count:" << cobject[]<< std::endl;
+
+        if (cobject["type"] == "BuildingPart") {
+          for (const auto& geom : cobject["geometry"]) {
+
+            if(geom["lod"].get<std::string>() == optimal_lod) {
+              // get mesh
+              if (
+                geom["type"] == "Solid"// only care about solids
+              ) {
+                Mesh mesh;
+                // get faces of exterior shell
+                for (const auto& ext_face : geom["boundaries"][0]) {
+                  LinearRing ring;
+                  for (const auto& i : ext_face[0]) { // get vertices of outer rings
+                    ring.push_back(
+                      manager.coord_transform_fwd(
+                        float((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                        float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                        float((vertices[i][2] * jscale[2])+jtranslate[2])
+                      )
+                    );
+                    // get the surface type
+                  }
+                  mesh.push_polygon(ring, 2);
+                }
+                meshes.push_back(mesh);
+              }
+            }
+          }
+        }
+      }
+
+    }
+
+
   }
 
 
