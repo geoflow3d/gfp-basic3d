@@ -643,6 +643,21 @@ namespace geoflow::nodes::basic3d
           // std::cout<<boundaries<< std::endl;
         }
       }
+      if(optimal_lod_) {
+        for( auto& item : feature["CityObjects"].items() ) {
+          auto& cobject = metajson["CityObjects"][item.key()];
+          if(cobject["type"] == "BuildingPart") {
+            std::string optilod = feature["CityObjects"][ cobject["parents"][0] ] ["attributes"]["optimal_lod"];
+            std::vector<nlohmann::json> new_geometries;
+            for(auto& geom : cobject["geometry"]) {
+              if (geom["lod"] == optilod) {
+                new_geometries.push_back(geom);
+              }
+            }
+            cobject["geometry"] = new_geometries;
+          }
+        }
+      }
       // std::cout << json << std::endl;
       metajson["vertices"].insert(metajson["vertices"].end(), feature["vertices"].begin(), feature["vertices"].end());
       // std::cout << json["vertices"] << std::endl;
@@ -699,7 +714,7 @@ namespace geoflow::nodes::basic3d
       if(feature["type"] != "CityJSONFeature") {
         throw(gfException("input is not CityJSONFeature"));
       }
-
+      size_t n_attr=0, n_mesh=0;
       std::string optimal_lod;
       for( auto [id, cobject] : feature["CityObjects"].items() ) {
         // std::cout<< "CID:" << id << std::endl;
@@ -709,6 +724,7 @@ namespace geoflow::nodes::basic3d
           optimal_lod = cobject["attributes"]["optimal_lod"];
 
           size_t n_children = cobject["children"].size();
+          n_attr += n_children;
           // get_attributes
           for(auto& [jname, jval] : cobject["attributes"].items()) {
             if(jval.is_string()) {
@@ -759,10 +775,16 @@ namespace geoflow::nodes::basic3d
                   mesh.push_polygon(ring, 2);
                 }
                 meshes.push_back(mesh);
+                n_mesh++;
               }
             }
           }
         }
+      }
+
+      if(n_attr!=n_mesh) {
+        std::cout << "Pushing attr n=" <<n_attr<<" and mesh n=" <<n_mesh <<std::endl;
+        std::cout << featurestr << std::endl;
       }
 
     }

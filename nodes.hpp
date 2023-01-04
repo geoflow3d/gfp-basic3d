@@ -379,6 +379,7 @@ class CityJSONLinesWriterNode : public Node {
   // parameter variables
   std::string filepath_;
   bool prettyPrint_ = false;
+  bool optimal_lod_ = false;
 
 public:
   using Node::Node;
@@ -389,6 +390,7 @@ public:
 
     // declare parameters
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
+    add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
     add_param(ParamPath(filepath_, "filepath", "File path"));
   }
 
@@ -413,20 +415,20 @@ public:
   void process() override;
 };
 
-class Mesh2CityGMLWriterNode:public Node {
-  static const int FLOOR=0, ROOF=1, OUTERWALL=2, INNERWALL=3;
-  public:
-  using Node::Node;
-  std::string filepath_;
+// class Mesh2CityGMLWriterNode:public Node {
+//   static const int FLOOR=0, ROOF=1, OUTERWALL=2, INNERWALL=3;
+//   public:
+//   using Node::Node;
+//   std::string filepath_;
 
-  void init() override {
-    add_vector_input("mesh", typeid(Mesh));
-    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+//   void init() override {
+//     add_vector_input("mesh", typeid(Mesh));
+//     add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
 
-    add_param(ParamPath(filepath_, "filepath",  "filepath"));   
-  }
-  void process() override;
-};
+//     add_param(ParamPath(filepath_, "filepath",  "filepath"));   
+//   }
+//   void process() override;
+// };
 
 } // namespace geoflow::nodes::basic3d
