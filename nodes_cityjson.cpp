@@ -696,97 +696,181 @@ namespace geoflow::nodes::basic3d
     // size_t vindex_offset = 0;
     auto& meshes = vector_output("meshes");
     auto& attributes = poly_output("attributes");
-    for (size_t i=0; i< features_inp.size(); ++i) {
-      // std::cout<< "FI:" << i<< std::endl;
-      auto& featurestr = features_inp.get<std::string>(i);
-      if (featurestr.size()==0) {
-        std::cout << "empty feature string for feature; skipping...\n";
-        continue;
-      }
-      // std::cout<< featurestr << std::endl;
-      nlohmann::json feature;
-      try {
-        feature = nlohmann::json::parse(featurestr);
-      } catch (const std::exception& e) {
-        throw(gfIOError(e.what()));
-      }
-      
-      if(feature["type"] != "CityJSONFeature") {
-        throw(gfException("input is not CityJSONFeature"));
-      }
-      size_t n_attr=0, n_mesh=0;
-      std::string optimal_lod;
-      for( auto [id, cobject] : feature["CityObjects"].items() ) {
-        // std::cout<< "CID:" << id << std::endl;
-        // std::cout<< "vertex_count:" << cobject[]<< std::endl;
+    if (bag3d_buildings_mode_) {
+      for (size_t i=0; i< features_inp.size(); ++i) {
+        // std::cout<< "FI:" << i<< std::endl;
+        auto& featurestr = features_inp.get<std::string>(i);
+        if (featurestr.size()==0) {
+          std::cout << "empty feature string for feature; skipping...\n";
+          continue;
+        }
+        // std::cout<< featurestr << std::endl;
+        nlohmann::json feature;
+        try {
+          feature = nlohmann::json::parse(featurestr);
+        } catch (const std::exception& e) {
+          throw(gfIOError(e.what()));
+        }
+        
+        if(feature["type"] != "CityJSONFeature") {
+          throw(gfException("input is not CityJSONFeature"));
+        }
+        size_t n_attr=0, n_mesh=0;
+        std::string optimal_lod_value = optimal_lod_value_;
+        for( auto [id, cobject] : feature["CityObjects"].items() ) {
+          // std::cout<< "CID:" << id << std::endl;
+          // std::cout<< "vertex_count:" << cobject[]<< std::endl;
 
-        if (cobject["type"] == "Building") {
-          optimal_lod = cobject["attributes"]["optimal_lod"];
+          if (cobject["type"] == "Building") {
+            if (optimal_lod_) optimal_lod_value = cobject["attributes"]["optimal_lod"];
 
-          size_t n_children = cobject["children"].size();
-          n_attr += n_children;
+            size_t n_children = cobject["children"].size();
+            n_attr += n_children;
+            // get_attributes
+            for(auto& [jname, jval] : cobject["attributes"].items()) {
+              if(jval.is_string()) {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(std::string));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+              } else if (jval.is_number()) {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(float));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  attributes.sub_terminal(jname).push_back(jval.get<float>());
+              }
+            }
+          }
+        }
+
+        std::vector<std::vector<double>> vertices = feature["vertices"];
+        
+        for( auto [id, cobject] : feature["CityObjects"].items() ) {
+          // std::cout<< "CID:" << id << std::endl;
+          // std::cout<< "vertex_count:" << cobject[]<< std::endl;
+
+          if (cobject["type"] == "BuildingPart") {
+            for (const auto& geom : cobject["geometry"]) {
+
+              if(geom["lod"].get<std::string>() == optimal_lod_value) {
+                // get mesh
+                if (
+                  geom["type"] == "Solid"// only care about solids
+                ) {
+                  Mesh mesh;
+                  // get faces of exterior shell
+                  for (const auto& ext_face : geom["boundaries"][0]) {
+                    LinearRing ring;
+                    for (const auto& i : ext_face[0]) { // get vertices of outer rings
+                      ring.push_back(
+                        manager.coord_transform_fwd(
+                          float((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                          float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                          float((vertices[i][2] * jscale[2])+jtranslate[2])
+                        )
+                      );
+                      // get the surface type
+                    }
+                    mesh.push_polygon(ring, 2);
+                  }
+                  meshes.push_back(mesh);
+                  n_mesh++;
+                }
+              }
+            }
+          }
+        }
+        if(n_attr!=n_mesh) {
+          std::cout << "Pushing attr n=" <<n_attr<<" and mesh n=" <<n_mesh <<std::endl;
+          std::cout << featurestr << std::endl;
+        }
+      }
+    } else { // not 3dbag_buildings_mode
+      for (size_t i=0; i< features_inp.size(); ++i) {
+        // std::cout<< "FI:" << i<< std::endl;
+        auto& featurestr = features_inp.get<std::string>(i);
+        if (featurestr.size()==0) {
+          std::cout << "empty feature string for feature; skipping...\n";
+          continue;
+        }
+        // std::cout<< featurestr << std::endl;
+        nlohmann::json feature;
+        try {
+          feature = nlohmann::json::parse(featurestr);
+        } catch (const std::exception& e) {
+          throw(gfIOError(e.what()));
+        }
+        
+        if(feature["type"] != "CityJSONFeature") {
+          throw(gfException("input is not CityJSONFeature"));
+        }
+        size_t n_attr=0, n_mesh=0;
+        std::vector<std::vector<double>> vertices = feature["vertices"];
+        for( auto [id, cobject] : feature["CityObjects"].items() ) {
+          // std::cout<< "CID:" << id << std::endl;
+          // std::cout<< "vertex_count:" << cobject[]<< std::endl;
           // get_attributes
           for(auto& [jname, jval] : cobject["attributes"].items()) {
             if(jval.is_string()) {
               if (!attributes.has_sub_terminal(jname)) {
                 attributes.add_vector(jname, typeid(std::string));
               }
-              for (size_t i=0; i<n_children; ++i)
-                attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+              attributes.sub_terminal(jname).push_back(jval.get<std::string>());
             } else if (jval.is_number()) {
               if (!attributes.has_sub_terminal(jname)) {
                 attributes.add_vector(jname, typeid(float));
               }
-              for (size_t i=0; i<n_children; ++i)
-                attributes.sub_terminal(jname).push_back(jval.get<float>());
+              attributes.sub_terminal(jname).push_back(jval.get<float>());
             }
           }
-        }
-      }
 
-      std::vector<std::vector<double>> vertices = feature["vertices"];
-      
-      for( auto [id, cobject] : feature["CityObjects"].items() ) {
-        // std::cout<< "CID:" << id << std::endl;
-        // std::cout<< "vertex_count:" << cobject[]<< std::endl;
-
-        if (cobject["type"] == "BuildingPart") {
           for (const auto& geom : cobject["geometry"]) {
-
-            if(geom["lod"].get<std::string>() == optimal_lod) {
-              // get mesh
-              if (
-                geom["type"] == "Solid"// only care about solids
-              ) {
-                Mesh mesh;
-                // get faces of exterior shell
-                for (const auto& ext_face : geom["boundaries"][0]) {
-                  LinearRing ring;
-                  for (const auto& i : ext_face[0]) { // get vertices of outer rings
-                    ring.push_back(
-                      manager.coord_transform_fwd(
-                        float((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                        float((vertices[i][1] * jscale[1])+jtranslate[1]), 
-                        float((vertices[i][2] * jscale[2])+jtranslate[2])
-                      )
-                    );
-                    // get the surface type
-                  }
-                  mesh.push_polygon(ring, 2);
+            // get geometry
+            if (geom["type"] == "Solid") {
+              Mesh mesh;
+              // get faces of exterior shell (interior ones ignored)
+              for (const auto& ext_face : geom["boundaries"][0]) {
+                LinearRing ring;
+                for (const auto& i : ext_face[0]) { // get vertices of outer rings
+                  ring.push_back(
+                    manager.coord_transform_fwd(
+                      float((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                      float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                      float((vertices[i][2] * jscale[2])+jtranslate[2])
+                    )
+                  );
+                  // get the surface type
                 }
-                meshes.push_back(mesh);
-                n_mesh++;
+                mesh.push_polygon(ring, 2);
               }
+              meshes.push_back(mesh);
+            } else if (geom["type"] == "MultiSurface") {
+              Mesh mesh;
+              // get faces of exterior shell
+              for (const auto& ext_face : geom["boundaries"]) {
+                LinearRing ring;
+                for (const auto& i : ext_face[0]) { // get vertices of outer rings
+                  ring.push_back(
+                    manager.coord_transform_fwd(
+                      float((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                      float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                      float((vertices[i][2] * jscale[2])+jtranslate[2])
+                    )
+                  );
+                  // get the surface type
+                }
+                mesh.push_polygon(ring, 2);
+              }
+              meshes.push_back(mesh);
+            } else {
+              throw(gfIOError("Unsupported geometry type"));
             }
           }
+          
         }
       }
-
-      if(n_attr!=n_mesh) {
-        std::cout << "Pushing attr n=" <<n_attr<<" and mesh n=" <<n_mesh <<std::endl;
-        std::cout << featurestr << std::endl;
-      }
-
     }
 
 

@@ -399,6 +399,9 @@ public:
 
 class CityJSONL2MeshNode : public Node {
   // parameter variables
+  bool bag3d_buildings_mode_ = true;
+  bool optimal_lod_ = true;
+  std::string optimal_lod_value_ = "2.2";
 
 public:
   using Node::Node;
@@ -410,6 +413,9 @@ public:
     add_poly_output("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
     // declare parameters
+    add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
+    add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }
 
   void process() override;
