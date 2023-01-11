@@ -421,6 +421,28 @@ public:
   void process() override;
 };
 
+class GLTFWriterNode : public Node {
+  // parameter variables
+  // bool bag3d_buildings_mode_ = true;
+  // bool optimal_lod_ = true;
+  // std::string optimal_lod_value_ = "2.2";
+
+public:
+  using Node::Node;
+
+  void init() override {
+    add_vector_input("triangles", typeid(TriangleCollection));
+    add_vector_input("normals", typeid(vec3f));
+
+    // declare parameters
+    // add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
+    // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
+  }
+
+  void process() override;
+};
+
 // class Mesh2CityGMLWriterNode:public Node {
 //   static const int FLOOR=0, ROOF=1, OUTERWALL=2, INNERWALL=3;
 //   public:
