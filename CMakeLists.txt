@@ -7,8 +7,16 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 find_package(nlohmann_json 3.10.5 CONFIG REQUIRED)
+
 include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/include
+)
+
+set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+# set(TINYGLTF_NO_INCLUDE_JSON ON CACHE INTERNAL "" FORCE)
+add_subdirectory(
+  ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf
 )
 
 set(GF_PLUGIN_NAME ${PROJECT_NAME})
@@ -19,6 +27,7 @@ geoflow_create_plugin(
   nodes_ply.cpp
   nodes_cityjson.cpp
   nodes_cityfb.cpp
+  nodes_gltf.cpp
 )
 
-target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json)
+target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json tinygltf)

@@ -426,6 +426,11 @@ class GLTFWriterNode : public Node {
   // bool bag3d_buildings_mode_ = true;
   // bool optimal_lod_ = true;
   // std::string optimal_lod_value_ = "2.2";
+  std::string filepath_;
+  bool embed_images_ = true;
+  bool embed_buffers_ = true;
+  bool pretty_print_ = false;
+  bool binary_ = true;
 
 public:
   using Node::Node;
@@ -435,7 +440,11 @@ public:
     add_vector_input("normals", typeid(vec3f));
 
     // declare parameters
-    // add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    add_param(ParamPath(filepath_, "filepath", "File path"));
+    add_param(ParamBool(embed_images_, "embed_images", "embed_images"));
+    add_param(ParamBool(embed_buffers_, "embed_buffers", "embed_buffers"));
+    add_param(ParamBool(pretty_print_, "pretty_print", "pretty_print"));
+    add_param(ParamBool(binary_, "binary", "binary"));
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }
