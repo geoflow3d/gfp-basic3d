@@ -410,6 +410,7 @@ public:
     add_input("jsonl_metadata_str", typeid(std::string));
     add_vector_input("jsonl_features_str", typeid(std::string));
     add_vector_output("meshes", typeid(Mesh));
+    add_vector_output("feature_type", typeid(std::string));
     add_poly_output("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
     // declare parameters
@@ -431,6 +432,7 @@ class GLTFWriterNode : public Node {
   bool embed_buffers_ = true;
   bool pretty_print_ = false;
   bool binary_ = true;
+  std::string CRS_ = "EPSG:4978";
 
 public:
   using Node::Node;
@@ -438,8 +440,10 @@ public:
   void init() override {
     add_vector_input("triangles", typeid(TriangleCollection));
     add_vector_input("normals", typeid(vec3f));
+    add_vector_input("feature_type", typeid(std::string));
 
     // declare parameters
+    add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
     add_param(ParamPath(filepath_, "filepath", "File path"));
     add_param(ParamBool(embed_images_, "embed_images", "embed_images"));
     add_param(ParamBool(embed_buffers_, "embed_buffers", "embed_buffers"));

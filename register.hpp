@@ -29,4 +29,5 @@ void register_nodes(geoflow::NodeRegister& node_register) {
   node_register.register_node<CityJSONLinesWriterNode>("CityJSONLinesWriter");
   // node_register.register_node<Mesh2CityGMLWriterNode>("Mesh2CityGMLWriter");
   node_register.register_node<CityJSONL2MeshNode>("CityJSONL2Mesh");
+  node_register.register_node<GLTFWriterNode>("GLTFWriter");
 }

@@ -825,6 +825,7 @@ namespace geoflow::nodes::basic3d
               attributes.sub_terminal(jname).push_back(jval.get<float>());
             }
           }
+          vector_output("feature_type").push_back(cobject["type"].get<std::string>());
 
           for (const auto& geom : cobject["geometry"]) {
             // get geometry
