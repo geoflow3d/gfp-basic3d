@@ -421,9 +421,12 @@ class CityJSONL2MeshNode : public Node {
     "GenericCityObject"
   };
   StrMap lod_filter;
+  // StrMap feature_type_filter;
   // parameter variables
   bool bag3d_buildings_mode_ = true;
   bool optimal_lod_ = true;
+  std::string cotypes="";
+  // bool filter_by_type = false;
   std::string optimal_lod_value_ = "2.2";
 
 public:
@@ -439,8 +442,10 @@ public:
     // declare parameters
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
     add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
+    add_param(ParamString(cotypes, "cotypes", "Output only these feature types, comma separated"));
     add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
     add_param(ParamStrMap(lod_filter, key_options, "lod_filter", "Output attribute names"));
+    // add_param(ParamStrMap(feature_type_filter, key_options, "feature_type_filter", "Only output these feature types (put any string longer than 0 as value)"));
   }
 
   void process() override;

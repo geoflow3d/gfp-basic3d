@@ -93,6 +93,7 @@ namespace geoflow::nodes::basic3d
   void GLTFWriterNode::process() {
     typedef std::array<float,6> arr6f;
     struct TCInfo {
+      size_t i_input;
       unsigned vertex_offset;
       unsigned vertex_count;
       unsigned index_offset;
@@ -134,6 +135,7 @@ namespace geoflow::nodes::basic3d
     // determine approximate centerpoint
     Box global_bbox;
     for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
+      if (!triangle_collections_inp.get_data_vec()[i].has_value()) continue;
       auto tc = triangle_collections_inp.get<TriangleCollection>(i);
       if (tc.vertex_count() == 0)
         continue;
@@ -144,6 +146,7 @@ namespace geoflow::nodes::basic3d
     const arr3f c = global_bbox.center();
 
     for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
+      if (!triangle_collections_inp.get_data_vec()[i].has_value()) continue;
       auto tc = triangle_collections_inp.get<TriangleCollection>(i);
       if (tc.vertex_count() == 0)
         continue;
@@ -151,6 +154,7 @@ namespace geoflow::nodes::basic3d
       
       
       TCInfo inf;
+      inf.i_input = i;
       Box positions_box;
       // compute arrays
       {
@@ -218,8 +222,8 @@ namespace geoflow::nodes::basic3d
     auto byteOffset_attributes = index_vec.size() * sizeof(unsigned);
 
     for(unsigned i=0; i< info_vec.size(); ++i) {
-      auto& ftype = featuretype_inp.get<std::string>(i);
       auto& inf = info_vec[i];
+      auto& ftype = featuretype_inp.get<std::string>(inf.i_input);
       tinygltf::BufferView bf_attributes;
       tinygltf::BufferView bf_indices;
       tinygltf::Accessor acc_positions;

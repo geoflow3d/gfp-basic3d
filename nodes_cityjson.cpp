@@ -668,6 +668,20 @@ namespace geoflow::nodes::basic3d
     CityJSON::write_to_file(metajson, fname, prettyPrint_);
   }
 
+  std::set<std::string> split_string(const std::string& s, std::string delimiter) {
+    std::set<std::string> parts;
+    if (s.empty()) return parts;
+    size_t last = 0;
+    size_t next = 0;
+
+    while ((next = s.find(delimiter, last)) != std::string::npos) {
+      parts.insert(s.substr(last, next-last));
+      last = next + 1;
+    }
+    parts.insert(s.substr(last));
+    return parts;
+  }
+
   void CityJSONL2MeshNode::process() {
     auto jsonstr = input("jsonl_metadata_str").get<std::string>();
     nlohmann::json metajson;
@@ -692,6 +706,12 @@ namespace geoflow::nodes::basic3d
     } else {
       throw(gfException("CRS not detected"));
     }
+
+    auto feature_filter = split_string(manager.substitute_globals(cotypes), ",");
+    for(auto& t : feature_filter) {
+      std::cout << "filtering: " << t << std::endl;
+    }
+    bool filter_by_ftype = feature_filter.size() != 0;
 
     // size_t vindex_offset = 0;
     auto& meshes = vector_output("meshes");
@@ -809,7 +829,36 @@ namespace geoflow::nodes::basic3d
         size_t n_attr=0, n_mesh=0;
         std::vector<std::vector<double>> vertices = feature["vertices"];
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
-          std::cout<< "CID:" << id << std::endl;
+
+          auto ftype = cobject["type"].get<std::string>();
+          std::cout<< "type:" << ftype <<std::endl;
+
+          if (filter_by_ftype) if(!feature_filter.count(ftype)) {
+            std::cout<< "skipping..." <<std::endl;
+            continue;
+          }
+          
+          vector_output("feature_type").push_back(ftype);
+
+          std::string selected_lod;
+          if(lod_filter.count(ftype)) {
+            selected_lod = lod_filter[ftype];
+          } else {
+            float max_lodf = 0;
+            std::cout<< "\navailable lod: ";
+            for (const auto& geom : cobject["geometry"]) {
+              auto lod = geom["lod"].get<std::string>();
+              std::cout<<lod << ", ";
+              auto lodf = std::stof(lod);
+              if(lodf > max_lodf) {
+                max_lodf = lodf;
+                selected_lod = lod;
+              }
+            }
+          }
+          std::cout<< "selected lod: " << selected_lod << std::endl;
+
+          // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
           // get_attributes
           for(auto& [jname, jval] : cobject["attributes"].items()) {
@@ -835,27 +884,7 @@ namespace geoflow::nodes::basic3d
                 std::cout<< "inconsistent attribute type for: " << jname << std::endl;
             }
           }
-          auto ftype = cobject["type"].get<std::string>();
-          vector_output("feature_type").push_back(ftype);
-          std::cout<< "type:" << ftype <<std::endl;
-
-          std::string selected_lod;
-          if(lod_filter.count(ftype)) {
-            selected_lod = lod_filter[ftype];
-          } else {
-            float max_lodf = 0;
-            std::cout<< "\navailable lod: ";
-            for (const auto& geom : cobject["geometry"]) {
-              auto lod = geom["lod"].get<std::string>();
-              std::cout<<lod << ", ";
-              auto lodf = std::stof(lod);
-              if(lodf > max_lodf) {
-                max_lodf = lodf;
-                selected_lod = lod;
-              }
-            }
-          }
-          std::cout<< "selected lod: " << lod_filter[ftype] << std::endl;
+          
           for (const auto& geom : cobject["geometry"]) {
             // get geometry for highest lod
             if(geom["lod"] != selected_lod) continue;
