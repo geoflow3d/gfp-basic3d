@@ -164,7 +164,7 @@ namespace geoflow::nodes::basic3d
               vertex_vec.push_back(vertex);
               positions_box.add(p_);
             }
-            index_vec.push_back(v_offset + vertex_map[vertex]);
+            index_vec.push_back(vertex_map[vertex]);
             ++i;
           }
         }
@@ -172,8 +172,8 @@ namespace geoflow::nodes::basic3d
         inf.vertex_count = v_cntr;
         inf.index_offset= i_offset;
         inf.index_count = i;
-        inf.index_min.push_back(v_offset);
-        inf.index_max.push_back(v_offset+v_cntr-1);
+        inf.index_min.push_back(0);
+        inf.index_max.push_back(v_cntr-1);
 
         Box normals_box;
         normals_box.add(normals);
