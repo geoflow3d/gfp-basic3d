@@ -130,6 +130,19 @@ namespace geoflow::nodes::basic3d
     unsigned v_offset = 0;
     unsigned i_offset = 0;
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
+
+    // determine approximate centerpoint
+    Box global_bbox;
+    for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
+      auto tc = triangle_collections_inp.get<TriangleCollection>(i);
+      if (tc.vertex_count() == 0)
+        continue;
+      global_bbox.add(
+        manager.coord_transform_rev(tc[0][1])
+      );
+    }
+    const arr3f c = global_bbox.center();
+
     for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
       auto tc = triangle_collections_inp.get<TriangleCollection>(i);
       if (tc.vertex_count() == 0)
@@ -152,9 +165,9 @@ namespace geoflow::nodes::basic3d
             const auto p_ = manager.coord_transform_rev(p);
             // NB: narrowing double to float here, not ideal
             auto vertex = arr6f{
-              float(p_[0]), 
-              float(p_[1]), 
-              float(p_[2]), 
+              float(p_[0] - c[0]), 
+              float(p_[1] - c[1]), 
+              float(p_[2] - c[2]), 
               normals[i][0], normals[i][1], normals[i][2]
             };
             auto [it, did_insert] = vertex_set.insert(vertex);
@@ -162,7 +175,7 @@ namespace geoflow::nodes::basic3d
             {
               vertex_map[vertex] = v_cntr++;
               vertex_vec.push_back(vertex);
-              positions_box.add(p_);
+              positions_box.add(arr3f{vertex[0], vertex[1], vertex[2]});
             }
             index_vec.push_back(vertex_map[vertex]);
             ++i;
@@ -305,7 +318,12 @@ namespace geoflow::nodes::basic3d
     node.mesh = 0;
     // Apply z-up to y-up transformation since our data is z-up, but gltf requires y-up (per 3D tiles specs recommendation)
     // see https://github.com/CesiumGS/3d-tiles/tree/main/specification#y-up-to-z-up
-    node.matrix = {1,0,0,0,0,0,-1,0,0,1,0,0,0,0,0,1};
+    node.matrix = {
+      1,  0,  0,  0,
+      0,  0, -1,  0,
+      0,  1,  0,  0,
+      c[0],  c[1],  c[2],  1
+    };
     model.nodes.push_back(node);
     scene.nodes.push_back(0);
     model.scenes.push_back(scene);
