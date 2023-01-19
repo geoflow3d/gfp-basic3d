@@ -13,7 +13,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+#pragma once
 #include <fstream>
 #include <iomanip>
 #include <filesystem>
@@ -398,6 +398,29 @@ public:
 };
 
 class CityJSONL2MeshNode : public Node {
+  vec1s key_options{
+    "Building",
+    "BuildingPart",
+    "BuildingInstallation",
+    "TINRelief",
+    "Road",
+    "Railway",
+    "TransportSquare",
+    "WaterBody",
+    "PlantCover",
+    "SolitaryVegetationObject",
+    "LandUse",
+    "CityFurniture",
+    "Bridge",
+    "BridgePart",
+    "BridgeInstallation",
+    "BridgeConstructionElement",
+    "Tunnel",
+    "TunnelPart",
+    "TunnelInstallation",
+    "GenericCityObject"
+  };
+  StrMap lod_filter;
   // parameter variables
   bool bag3d_buildings_mode_ = true;
   bool optimal_lod_ = true;
@@ -417,6 +440,7 @@ public:
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
     add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
+    add_param(ParamStrMap(lod_filter, key_options, "lod_filter", "Output attribute names"));
   }
 
   void process() override;

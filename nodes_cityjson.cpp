@@ -809,26 +809,56 @@ namespace geoflow::nodes::basic3d
         size_t n_attr=0, n_mesh=0;
         std::vector<std::vector<double>> vertices = feature["vertices"];
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
-          // std::cout<< "CID:" << id << std::endl;
+          std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
           // get_attributes
           for(auto& [jname, jval] : cobject["attributes"].items()) {
-            if(jval.is_string()) {
-              if (!attributes.has_sub_terminal(jname)) {
-                attributes.add_vector(jname, typeid(std::string));
-              }
-              attributes.sub_terminal(jname).push_back(jval.get<std::string>());
-            } else if (jval.is_number()) {
+            // std::cout << jname <<std::endl;
+            if (jval.is_number()) {
               if (!attributes.has_sub_terminal(jname)) {
                 attributes.add_vector(jname, typeid(float));
               }
-              attributes.sub_terminal(jname).push_back(jval.get<float>());
+              // std::cout<< "flt:" << jval.get<float>() << std::endl;
+              if (attributes.sub_terminal(jname).accepts_type(typeid(float)))
+                attributes.sub_terminal(jname).push_back(jval.get<float>());
+              else
+                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+            } else if(jval.is_string()) {
+              if (!attributes.has_sub_terminal(jname)) {
+                attributes.add_vector(jname, typeid(std::string));
+              }
+              // std::cout<< "str:" << jval.get<std::string>() << std::endl;
+              // std::cout<< "ttype:" << (attributes.sub_terminal(jname).get_types()[0]).name() << std::endl;
+              if (attributes.sub_terminal(jname).accepts_type(typeid(std::string)))
+                attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+              else
+                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
             }
           }
-          vector_output("feature_type").push_back(cobject["type"].get<std::string>());
+          auto ftype = cobject["type"].get<std::string>();
+          vector_output("feature_type").push_back(ftype);
+          std::cout<< "type:" << ftype <<std::endl;
 
+          std::string selected_lod;
+          if(lod_filter.count(ftype)) {
+            selected_lod = lod_filter[ftype];
+          } else {
+            float max_lodf = 0;
+            std::cout<< "\navailable lod: ";
+            for (const auto& geom : cobject["geometry"]) {
+              auto lod = geom["lod"].get<std::string>();
+              std::cout<<lod << ", ";
+              auto lodf = std::stof(lod);
+              if(lodf > max_lodf) {
+                max_lodf = lodf;
+                selected_lod = lod;
+              }
+            }
+          }
+          std::cout<< "selected lod: " << lod_filter[ftype] << std::endl;
           for (const auto& geom : cobject["geometry"]) {
-            // get geometry
+            // get geometry for highest lod
+            if(geom["lod"] != selected_lod) continue;
             if (geom["type"] == "Solid") {
               Mesh mesh;
               // get faces of exterior shell (interior ones ignored)

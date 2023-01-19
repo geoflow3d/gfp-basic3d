@@ -66,6 +66,7 @@ namespace geoflow::nodes::basic3d
   };
 
   unsigned get_material_id(const std::string type) {
+    std::cout << "assigning material for " << type << std::endl;
     if (type == "Building" or type == "BuildingPart" or type == "BuildingInstallation")
       return 0;
     else if (type == "TINRelief")
@@ -86,6 +87,7 @@ namespace geoflow::nodes::basic3d
       return 8;
     else if (type == "GenericCityObject")
       return 9;
+    return 0;
   }
 
   void GLTFWriterNode::process() {
@@ -130,12 +132,16 @@ namespace geoflow::nodes::basic3d
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
     for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
       auto tc = triangle_collections_inp.get<TriangleCollection>(i);
+      if (tc.vertex_count() == 0)
+        continue;
       auto& normals = normals_inp.get<vec3f>(i);
+      
       
       TCInfo inf;
       Box positions_box;
       // compute arrays
       {
+        // count the nr of vertices and indices stored for this tc
         unsigned v_cntr = 0, i = 0 ;
         std::set<arr6f> vertex_set;
         std::map<arr6f, unsigned> vertex_map;
@@ -143,8 +149,14 @@ namespace geoflow::nodes::basic3d
         {
           for (auto &p : triangle)
           {
-            auto p_ = manager.coord_transform_rev(p);
-            auto vertex = arr6f{p_[0], p_[1], p_[2], normals[i][0], normals[i][1], normals[i][2]};
+            const auto p_ = manager.coord_transform_rev(p);
+            // NB: narrowing double to float here, not ideal
+            auto vertex = arr6f{
+              float(p_[0]), 
+              float(p_[1]), 
+              float(p_[2]), 
+              normals[i][0], normals[i][1], normals[i][2]
+            };
             auto [it, did_insert] = vertex_set.insert(vertex);
             if (did_insert)
             {
@@ -192,7 +204,7 @@ namespace geoflow::nodes::basic3d
     // TODO check if padding is needed -> no only if componentype of index and attribute has different byteSize
     auto byteOffset_attributes = index_vec.size() * sizeof(unsigned);
 
-    for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
+    for(unsigned i=0; i< info_vec.size(); ++i) {
       auto& ftype = featuretype_inp.get<std::string>(i);
       auto& inf = info_vec[i];
       tinygltf::BufferView bf_attributes;
@@ -273,20 +285,20 @@ namespace geoflow::nodes::basic3d
     //   std::cout << vertex_vec[i][3] << ", " << vertex_vec[i][4] << ", " << vertex_vec[i][5] << std::endl;
     // }
     // std::cout << "buffer size=" << buffer.data.size() << std::endl;
-    // for (size_t i=0; i<buffer.data.size(); i+=4) {
-    //   std::cout << i/4 << " : ";
-    //   if (i<36*4) {
+    // for (size_t i=0; i<index_vec.size()*sizeof(unsigned); i+=4) {
+    //   std::cout << i/4 << " : \n";
+    //   // if (i<36*4) {
     //     unsigned u;
     //     memcpy(&u, &buffer.data[i], sizeof(u));
     //     std::cout << "u = " << u << std::endl;
-    //   } else {
+    //   // } else {
     //     // for (size_t j=i; j<i+12; j+=4){
-    //       float f;
-    //       memcpy(&f, &buffer.data[i], sizeof(f));
-    //       std::cout << "f = " << f << std::endl;
+    //       // float f;
+    //       // memcpy(&f, &buffer.data[i], sizeof(f));
+    //       // std::cout << "f = " << f << std::endl;
     //     // }
     //     // std::cout << std::endl;
-    //   }
+    //   // }
     // }
 
     model.meshes.push_back(mesh);
@@ -301,8 +313,10 @@ namespace geoflow::nodes::basic3d
     model.buffers.push_back(buffer);
 
     // Save it to a file
+    fs::path fname = fs::path(manager.substitute_globals(filepath_));
+    fs::create_directories(fname.parent_path());
     tinygltf::TinyGLTF gltf;
-    if(!gltf.WriteGltfSceneToFile(&model, manager.substitute_globals(filepath_),
+    if(!gltf.WriteGltfSceneToFile(&model, fname,
                             embed_images_, // embedImages
                             embed_buffers_, // embedBuffers
                             pretty_print_, // pretty print
