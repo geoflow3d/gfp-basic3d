@@ -461,6 +461,7 @@ class GLTFWriterNode : public Node {
   bool embed_buffers_ = true;
   bool pretty_print_ = false;
   bool binary_ = true;
+  bool relative_to_center = false;
   std::string CRS_ = "EPSG:4978";
 
 public:
@@ -478,6 +479,7 @@ public:
     add_param(ParamBool(embed_buffers_, "embed_buffers", "embed_buffers"));
     add_param(ParamBool(pretty_print_, "pretty_print", "pretty_print"));
     add_param(ParamBool(binary_, "binary", "binary"));
+    add_param(ParamBool(relative_to_center, "relative_to_center", "relative_to_center"));
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }

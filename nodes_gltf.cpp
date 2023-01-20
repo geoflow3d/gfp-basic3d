@@ -133,17 +133,19 @@ namespace geoflow::nodes::basic3d
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
     // determine approximate centerpoint
-    Box global_bbox;
-    for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
-      if (!triangle_collections_inp.get_data_vec()[i].has_value()) continue;
-      auto tc = triangle_collections_inp.get<TriangleCollection>(i);
-      if (tc.vertex_count() == 0)
-        continue;
-      global_bbox.add(
-        manager.coord_transform_rev(tc[0][1])
-      );
-    }
-    const arr3f c = global_bbox.center();
+    // if(relative_to_center) {
+      Box global_bbox;
+      for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
+        if (!triangle_collections_inp.get_data_vec()[i].has_value()) continue;
+        auto tc = triangle_collections_inp.get<TriangleCollection>(i);
+        if (tc.vertex_count() == 0)
+          continue;
+        global_bbox.add(
+          manager.coord_transform_rev(tc[0][1])
+        );
+      }
+      arr3f c = global_bbox.center();
+    // }
 
     for(unsigned i=0; i< triangle_collections_inp.size(); ++i) {
       if (!triangle_collections_inp.get_data_vec()[i].has_value()) continue;
@@ -168,12 +170,22 @@ namespace geoflow::nodes::basic3d
           {
             const auto p_ = manager.coord_transform_rev(p);
             // NB: narrowing double to float here, not ideal
-            auto vertex = arr6f{
-              float(p_[0] - c[0]), 
-              float(p_[1] - c[1]), 
-              float(p_[2] - c[2]), 
-              normals[i][0], normals[i][1], normals[i][2]
-            };
+            arr6f vertex;
+            if(relative_to_center) {
+              vertex = arr6f{
+                float(p_[0] - c[0]), 
+                float(p_[1] - c[1]), 
+                float(p_[2] - c[2]), 
+                normals[i][0], normals[i][1], normals[i][2]
+              };
+            } else {
+              vertex = arr6f{
+                float(p_[0]), 
+                float(p_[1]), 
+                float(p_[2]), 
+                normals[i][0], normals[i][1], normals[i][2]
+              };
+            }
             auto [it, did_insert] = vertex_set.insert(vertex);
             if (did_insert)
             {
@@ -217,6 +229,11 @@ namespace geoflow::nodes::basic3d
       info_vec.push_back(inf);
     }
     manager.clear_rev_crs_transform();
+
+    if (info_vec.size() == 0) {
+      std::cout<<"no vertices to write, aborting...\n";
+      return;
+    }
     
     // TODO check if padding is needed -> no only if componentype of index and attribute has different byteSize
     auto byteOffset_attributes = index_vec.size() * sizeof(unsigned);
@@ -322,12 +339,21 @@ namespace geoflow::nodes::basic3d
     node.mesh = 0;
     // Apply z-up to y-up transformation since our data is z-up, but gltf requires y-up (per 3D tiles specs recommendation)
     // see https://github.com/CesiumGS/3d-tiles/tree/main/specification#y-up-to-z-up
-    node.matrix = {
-      1,  0,  0,  0,
-      0,  0, -1,  0,
-      0,  1,  0,  0,
-      c[0],  c[1],  c[2],  1
-    };
+    if(relative_to_center) {
+      node.matrix = {
+        1,  0,  0,  0,
+        0,  0, -1,  0,
+        0,  1,  0,  0,
+        c[0],  c[1],  c[2],  1
+      };
+    } else {
+      node.matrix = {
+        1,  0,  0,  0,
+        0,  0, -1,  0,
+        0,  1,  0,  0,
+        0,  0,  0,  1
+      };
+    }
     model.nodes.push_back(node);
     scene.nodes.push_back(0);
     model.scenes.push_back(scene);

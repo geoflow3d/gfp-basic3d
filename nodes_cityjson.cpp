@@ -887,6 +887,7 @@ namespace geoflow::nodes::basic3d
           
           for (const auto& geom : cobject["geometry"]) {
             // get geometry for highest lod
+            std::cout << "found geom with lod "<< geom["lod"] << std::endl;
             if(geom["lod"] != selected_lod) continue;
             if (geom["type"] == "Solid") {
               Mesh mesh;
