@@ -190,7 +190,17 @@ namespace geoflow::nodes::basic3d
             if (did_insert)
             {
               vertex_map[vertex] = v_cntr++;
+              
+              // reproject normal
+              arr3f pn_{p[0]+vertex[3], p[1]+vertex[4], p[2]+vertex[5]};
+              auto pn = manager.coord_transform_rev(pn_);
+              arr3f n{float(pn[0]-p_[0]), float(pn[1]-p_[1]), float(pn[2]-p_[2])};
+              auto l = std::sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
               vertex_vec.push_back(vertex);
+              vertex_vec.back()[3] = n[0]/l;
+              vertex_vec.back()[4] = n[1]/l;
+              vertex_vec.back()[5] = n[2]/l;
+              
               positions_box.add(arr3f{vertex[0], vertex[1], vertex[2]});
             }
             index_vec.push_back(vertex_map[vertex]);
