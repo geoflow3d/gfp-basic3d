@@ -664,6 +664,20 @@ namespace geoflow::nodes::basic3d
       vindex_offset = metajson["vertices"].size();
     }
 
+    //compute extent
+    // metadata
+    auto& s = metajson["transform"]["scale"];
+    auto& t = metajson["transform"]["translate"];
+    Box bbox;
+    for(auto& v : metajson["vertices"]) {
+      bbox.add(arr3f{
+        (float) v[0].get<int>() * s[0].get<float>() + t[0].get<float>(),
+        (float) v[1].get<int>() * s[1].get<float>() + t[1].get<float>(),
+        (float) v[2].get<int>() * s[2].get<float>() + t[2].get<float>()
+      });
+    }
+    metajson["metadata"]["geographicalExtent"] = CityJSON::compute_geographical_extent(bbox, manager);
+
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
     CityJSON::write_to_file(metajson, fname, prettyPrint_);
   }
