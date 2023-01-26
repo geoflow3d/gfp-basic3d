@@ -729,6 +729,7 @@ namespace geoflow::nodes::basic3d
 
     // size_t vindex_offset = 0;
     auto& meshes = vector_output("meshes");
+    auto& roofparts = vector_output("roofparts");
     auto& attributes = poly_output("attributes");
     if (bag3d_buildings_mode_) {
       for (size_t i=0; i< features_inp.size(); ++i) {
@@ -794,7 +795,9 @@ namespace geoflow::nodes::basic3d
                   geom["type"] == "Solid"// only care about solids
                 ) {
                   Mesh mesh;
+                  Mesh roofparts_;
                   // get faces of exterior shell
+                  unsigned face_i=0;
                   for (const auto& ext_face : geom["boundaries"][0]) {
                     LinearRing ring;
                     for (const auto& i : ext_face[0]) { // get vertices of outer rings
@@ -808,7 +811,13 @@ namespace geoflow::nodes::basic3d
                       // get the surface type
                     }
                     mesh.push_polygon(ring, 2);
+                    int sindex = geom["semantics"]["values"][0][face_i++].get<int>();
+                    auto& stype = geom["semantics"]["surfaces"][ sindex ];
+                    if (stype["type"].get<std::string>() == "RoofSurface") {
+                      roofparts_.push_polygon(ring, 2);
+                    }
                   }
+                  roofparts.push_back(roofparts_);
                   meshes.push_back(mesh);
                   n_mesh++;
                 }

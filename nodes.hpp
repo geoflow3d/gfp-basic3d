@@ -436,6 +436,7 @@ public:
     add_input("jsonl_metadata_str", typeid(std::string));
     add_vector_input("jsonl_features_str", typeid(std::string));
     add_vector_output("meshes", typeid(Mesh));
+    add_vector_output("roofparts", typeid(Mesh));
     add_vector_output("feature_type", typeid(std::string));
     add_poly_output("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
