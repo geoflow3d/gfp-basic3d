@@ -148,6 +148,7 @@ class CityJSONWriterNode : public Node {
   std::string meta_poc_website_;
 
   bool prettyPrint_ = false;
+  bool only_output_renamed_ = false;
 
   vec1s key_options;
   StrMap output_attribute_names;
@@ -181,6 +182,8 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(meta_title_, "meta_title", "Metadata: title"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
+    add_param(ParamBool(only_output_renamed_, "only_output_renamed", "Only output renamed attributes."));
+
   }
 
   void on_receive(gfMultiFeatureInputTerminal& it) override {
@@ -227,6 +230,7 @@ class CityJSONFeatureWriterNode : public Node {
   std::string identifier_attribute_ = "";
 
   bool prettyPrint_ = false;
+  bool only_output_renamed_ = false;
 
   vec1s key_options;
   StrMap output_attribute_names;
@@ -255,6 +259,7 @@ public:
     add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
     add_param(ParamString(identifier_attribute_, "identifier_attribute", "(Renamed) attribute to use for CityObject ID (leave empty for auto ID generation). Only works for int and string attributes."));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
+    add_param(ParamBool(only_output_renamed_, "only_output_renamed", "Only output renamed attributes."));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
     add_param(ParamFloat(translate_x_, "translate_x", "CityJSON transform.translate.x"));
     add_param(ParamFloat(translate_y_, "translate_y", "CityJSON transform.translate.y"));

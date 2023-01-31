@@ -131,6 +131,7 @@ namespace geoflow::nodes::basic3d
                                     std::vector<arr3d>&           vertex_vec,
                                     std::string&                  identifier_attribute,
                                     StrMap&                       output_attribute_names,
+                                    bool&                         only_output_renamed,
                                     NodeManager&                  node_manager);
       static void write_to_file(const json& outputJSON, fs::path& fname, bool prettyPrint_);
       static nlohmann::json::array_t compute_geographical_extent(Box& bbox, NodeManager& manager);
@@ -238,6 +239,7 @@ namespace geoflow::nodes::basic3d
     std::vector<arr3d>&           vertex_vec,
     std::string&                  identifier_attribute,
     StrMap&                       output_attribute_names,
+    bool&                         only_output_renamed,
     NodeManager&                  node_manager)
   {
     std::map<arr3d, size_t> vertex_map;
@@ -277,6 +279,8 @@ namespace geoflow::nodes::basic3d
           //ignore if the new name is an empty string
           if(search->second.size()!=0)
             tname = search->second;
+        } else if (only_output_renamed) {
+          continue;    
         }
 
         if (term->accepts_type(typeid(bool))) {
@@ -427,6 +431,7 @@ namespace geoflow::nodes::basic3d
                                 vertex_vec,
                                 identifier_attribute,
                                 output_attribute_names,
+                                only_output_renamed_,
                                 manager);
 
     Box bbox;
@@ -516,6 +521,7 @@ namespace geoflow::nodes::basic3d
                                 vertex_vec,
                                 identifier_attribute,
                                 output_attribute_names,
+                                only_output_renamed_,
                                 manager);
 
     // The main Building is the parent object.
