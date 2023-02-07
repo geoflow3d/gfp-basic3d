@@ -86,7 +86,7 @@ void OBJWriterNode::process()
     if (no_offset)
       ofs << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
     else
-      ofs << "v " << v[0] + (*manager.data_offset)[0] << " " << v[1] + (*manager.data_offset)[1] << " " << v[2] + (*manager.data_offset)[2] << "\n";
+      ofs << "v " << v[0] + (*manager.data_offset())[0] << " " << v[1] + (*manager.data_offset())[1] << " " << v[2] + (*manager.data_offset())[2] << "\n";
   }
   for (auto &triangle : triangles)
   {
@@ -163,7 +163,7 @@ void VecOBJWriterNode::process()
       if (no_offset)
         ofs << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
       else
-        ofs << "v " << v[0] + (*manager.data_offset)[0] << " " << v[1] + (*manager.data_offset)[1] << " " << v[2] + (*manager.data_offset)[2] << "\n";
+        ofs << "v " << v[0] + (*manager.data_offset())[0] << " " << v[1] + (*manager.data_offset())[1] << " " << v[2] + (*manager.data_offset())[2] << "\n";
     }
     for (size_t j = 0; j < triangles.size(); ++j)
     {
@@ -211,7 +211,7 @@ void VecOBJWriterNode::process()
       if (no_offset)
         ofs << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
       else
-        ofs << "v " << v[0] + (*manager.data_offset)[0] << " " << v[1] + (*manager.data_offset)[1] << " " << v[2] + (*manager.data_offset)[2] << "\n";
+        ofs << "v " << v[0] + (*manager.data_offset())[0] << " " << v[1] + (*manager.data_offset())[1] << " " << v[2] + (*manager.data_offset())[2] << "\n";
     }
     for (size_t j = 0; j < triangles.size(); ++j)
     {
