@@ -126,10 +126,12 @@ namespace geoflow::nodes::basic3d
     create_materials(model);
 
     std::vector<arr6f> vertex_vec; // position + normal
+    std::vector<unsigned> feature_id_vec; // feature id vertex attribute
     std::vector<unsigned> index_vec;
     std::vector<TCInfo> info_vec;
     unsigned v_offset = 0;
     unsigned i_offset = 0;
+    unsigned feature_id = 0;
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
     // determine approximate centerpoint
@@ -200,7 +202,7 @@ namespace geoflow::nodes::basic3d
               vertex_vec.back()[3] = n[0]/l;
               vertex_vec.back()[4] = n[1]/l;
               vertex_vec.back()[5] = n[2]/l;
-              
+              feature_id_vec.push_back(feature_id);
               positions_box.add(arr3f{vertex[0], vertex[1], vertex[2]});
             }
             index_vec.push_back(vertex_map[vertex]);
@@ -236,6 +238,7 @@ namespace geoflow::nodes::basic3d
         v_offset += v_cntr;
         i_offset += i;
       }
+      feature_id += 1;
       info_vec.push_back(inf);
     }
     manager.clear_rev_crs_transform();
@@ -256,6 +259,7 @@ namespace geoflow::nodes::basic3d
       tinygltf::Accessor acc_positions;
       tinygltf::Accessor acc_normals;
       tinygltf::Accessor acc_indices;
+      tinygltf::Accessor acc_feature_ids;
       tinygltf::Primitive primitive;
 
       bf_indices.buffer = 0;
@@ -276,9 +280,9 @@ namespace geoflow::nodes::basic3d
       primitive.indices = model.accessors.size()-1;
 
       bf_attributes.buffer = 0;
-      bf_attributes.byteOffset = byteOffset_attributes + inf.vertex_offset * 6 * sizeof(float);
-      bf_attributes.byteLength = inf.vertex_count * 6 * sizeof(float);
-      bf_attributes.byteStride = 6 * sizeof(float);
+      bf_attributes.byteOffset = byteOffset_attributes + inf.vertex_offset * 6 * sizeof(float) + sizeof(uint32_t);
+      bf_attributes.byteLength = inf.vertex_count * 6 * sizeof(float) + inf.vertex_count * sizeof(uint32_t);
+      bf_attributes.byteStride = 6 * sizeof(float) + sizeof(uint32_t);
       bf_attributes.target = TINYGLTF_TARGET_ARRAY_BUFFER;
       auto id_bf_attributes = model.bufferViews.size();
       model.bufferViews.push_back(bf_attributes);
@@ -303,12 +307,22 @@ namespace geoflow::nodes::basic3d
       model.accessors.push_back(acc_normals);
       primitive.attributes["NORMAL"] = model.accessors.size()-1;  // The index of the accessor for normals
 
+      acc_feature_ids.bufferView = id_bf_attributes;
+      acc_feature_ids.byteOffset = 6 * sizeof(float);
+      acc_feature_ids.type = TINYGLTF_TYPE_SCALAR;
+      acc_feature_ids.normalized = false;
+      acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+      acc_feature_ids.count = inf.vertex_count;
+      model.accessors.push_back(acc_feature_ids);
+      std::string fid = "_FEATURE_ID_" + std::to_string(i);
+      primitive.attributes[fid] = model.accessors.size()-1;  // The index of the accessor for normals
+
       primitive.material = get_material_id(ftype);
       primitive.mode = TINYGLTF_MODE_TRIANGLES;
       mesh.primitives.push_back(primitive);
     }
 
-    buffer.data.resize(index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float));
+    buffer.data.resize(index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float) + feature_id_vec.size()*sizeof(unsigned));
     memcpy(
       buffer.data.data(), 
       (unsigned char*)index_vec.data(), 
@@ -318,6 +332,11 @@ namespace geoflow::nodes::basic3d
       buffer.data.data() + index_vec.size()*sizeof(unsigned), 
       (unsigned char*)vertex_vec[0].data(), 
       vertex_vec.size()*6*sizeof(float)
+    );
+    memcpy(
+      buffer.data.data() + index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float),
+      (unsigned char*)feature_id_vec.data(),
+      feature_id_vec.size()*sizeof(unsigned)
     );
 
     // std::cout << std::endl;
