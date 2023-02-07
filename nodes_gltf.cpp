@@ -66,7 +66,7 @@ namespace geoflow::nodes::basic3d
   };
 
   unsigned get_material_id(const std::string type) {
-    std::cout << "assigning material for " << type << std::endl;
+    // std::cout << "assigning material for " << type << std::endl;
     if (type == "Building" or type == "BuildingPart" or type == "BuildingInstallation")
       return 0;
     else if (type == "TINRelief")
