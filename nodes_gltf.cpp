@@ -126,7 +126,7 @@ namespace geoflow::nodes::basic3d
     create_materials(model);
 
     std::vector<arr6f> vertex_vec; // position + normal
-    std::vector<unsigned> feature_id_vec; // feature id vertex attribute
+    std::vector<float> feature_id_vec; // feature id vertex attribute
     std::vector<unsigned> index_vec;
     std::vector<TCInfo> info_vec;
     unsigned v_offset = 0;
