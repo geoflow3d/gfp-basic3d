@@ -66,7 +66,7 @@ namespace geoflow::nodes::basic3d
   };
 
   unsigned get_material_id(const std::string type) {
-    std::cout << "assigning material for " << type << std::endl;
+    // std::cout << "assigning material for " << type << std::endl;
     if (type == "Building" or type == "BuildingPart" or type == "BuildingInstallation")
       return 0;
     else if (type == "TINRelief")
@@ -131,7 +131,7 @@ namespace geoflow::nodes::basic3d
     std::vector<TCInfo> info_vec;
     unsigned v_offset = 0;
     unsigned i_offset = 0;
-    unsigned feature_id = 0;
+    float feature_id = 0.0; // It's a float, because glTF accessors do not support UNSIGNED_INT types for 32-bit integers in vertex attributes.
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
     // determine approximate centerpoint
@@ -250,12 +250,14 @@ namespace geoflow::nodes::basic3d
     
     // TODO check if padding is needed -> no only if componentype of index and attribute has different byteSize
     auto byteOffset_attributes = index_vec.size() * sizeof(unsigned);
+    auto byteOffset_feature_id = index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float);
 
     for(unsigned i=0; i< info_vec.size(); ++i) {
       auto& inf = info_vec[i];
       auto& ftype = featuretype_inp.get<std::string>(inf.i_input);
       tinygltf::BufferView bf_attributes;
       tinygltf::BufferView bf_indices;
+      tinygltf::BufferView bf_feature_ids;
       tinygltf::Accessor acc_positions;
       tinygltf::Accessor acc_normals;
       tinygltf::Accessor acc_indices;
@@ -280,9 +282,9 @@ namespace geoflow::nodes::basic3d
       primitive.indices = model.accessors.size()-1;
 
       bf_attributes.buffer = 0;
-      bf_attributes.byteOffset = byteOffset_attributes + inf.vertex_offset * 6 * sizeof(float) + sizeof(uint32_t);
-      bf_attributes.byteLength = inf.vertex_count * 6 * sizeof(float) + inf.vertex_count * sizeof(uint32_t);
-      bf_attributes.byteStride = 6 * sizeof(float) + sizeof(uint32_t);
+      bf_attributes.byteOffset = byteOffset_attributes + inf.vertex_offset * 6 * sizeof(float);
+      bf_attributes.byteLength = inf.vertex_count * 6 * sizeof(float);
+      bf_attributes.byteStride = 6 * sizeof(float);
       bf_attributes.target = TINYGLTF_TARGET_ARRAY_BUFFER;
       auto id_bf_attributes = model.bufferViews.size();
       model.bufferViews.push_back(bf_attributes);
@@ -307,14 +309,20 @@ namespace geoflow::nodes::basic3d
       model.accessors.push_back(acc_normals);
       primitive.attributes["NORMAL"] = model.accessors.size()-1;  // The index of the accessor for normals
 
-      acc_feature_ids.bufferView = id_bf_attributes;
-      acc_feature_ids.byteOffset = 6 * sizeof(float);
+      bf_feature_ids.buffer = 0;
+      bf_feature_ids.byteOffset = byteOffset_feature_id + inf.vertex_offset * sizeof(float);
+      bf_feature_ids.byteLength = inf.vertex_count * sizeof(float);
+      bf_feature_ids.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+      auto id_bf_feature_ids = model.bufferViews.size();
+      model.bufferViews.push_back(bf_feature_ids);
+
+      acc_feature_ids.bufferView = id_bf_feature_ids;
       acc_feature_ids.type = TINYGLTF_TYPE_SCALAR;
       acc_feature_ids.normalized = false;
-      acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+      acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
       acc_feature_ids.count = inf.vertex_count;
       model.accessors.push_back(acc_feature_ids);
-      std::string fid = "_FEATURE_ID_" + std::to_string(i);
+      std::string fid = "_FEATURE_ID_" + std::to_string((int)i);
       primitive.attributes[fid] = model.accessors.size()-1;  // The index of the accessor for normals
 
       primitive.material = get_material_id(ftype);
@@ -322,7 +330,7 @@ namespace geoflow::nodes::basic3d
       mesh.primitives.push_back(primitive);
     }
 
-    buffer.data.resize(index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float) + feature_id_vec.size()*sizeof(unsigned));
+    buffer.data.resize(index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float) + feature_id_vec.size()*sizeof(float));
     memcpy(
       buffer.data.data(), 
       (unsigned char*)index_vec.data(), 
@@ -336,7 +344,7 @@ namespace geoflow::nodes::basic3d
     memcpy(
       buffer.data.data() + index_vec.size()*sizeof(unsigned) + vertex_vec.size()*6*sizeof(float),
       (unsigned char*)feature_id_vec.data(),
-      feature_id_vec.size()*sizeof(unsigned)
+      feature_id_vec.size()*sizeof(float)
     );
 
     // std::cout << std::endl;

@@ -702,7 +702,25 @@ namespace geoflow::nodes::basic3d
     return parts;
   }
 
+  std::vector<std::string> split_string_to_vec(const std::string& s, std::string delimiter) {
+    std::vector<std::string> parts;
+    if (s.empty()) return parts;
+    size_t last = 0;
+    size_t next = 0;
+
+    while ((next = s.find(delimiter, last)) != std::string::npos) {
+      parts.push_back(s.substr(last, next-last));
+      last = next + 1;
+    }
+    parts.push_back(s.substr(last));
+    return parts;
+  }
+
   void CityJSONL2MeshNode::process() {
+    auto& meshes = vector_output("meshes");
+    auto& roofparts = vector_output("roofparts");
+    auto& attributes = poly_output("attributes");
+
     auto jsonstr = input("jsonl_metadata_str").get<std::string>();
     nlohmann::json metajson;
     try {
@@ -733,10 +751,14 @@ namespace geoflow::nodes::basic3d
     }
     bool filter_by_ftype = feature_filter.size() != 0;
 
-    // size_t vindex_offset = 0;
-    auto& meshes = vector_output("meshes");
-    auto& roofparts = vector_output("roofparts");
-    auto& attributes = poly_output("attributes");
+    std::unordered_map<std::string, std::string> attribute_filter_map;
+    auto attribute_filter = split_string(manager.substitute_globals(atribute_spec), ",");
+    for(const auto& t : attribute_filter) {
+      auto nt = split_string_to_vec(t, ":");
+      if (nt.size()!=2) throw(gfException("Error in parsing attribute_spec string: "+manager.substitute_globals(atribute_spec)));
+      attribute_filter_map[nt[0]] = nt[1];
+    }
+
     if (bag3d_buildings_mode_) {
       for (size_t i=0; i< features_inp.size(); ++i) {
         // std::cout<< "FI:" << i<< std::endl;
@@ -837,6 +859,20 @@ namespace geoflow::nodes::basic3d
         }
       }
     } else { // not 3dbag_buildings_mode
+      // create attributes from attribute_spec
+      for(auto& [name,type] : attribute_filter_map) {
+        if(type=="float")
+          attributes.add_vector(name, typeid(float));
+        else if(type=="string")
+          attributes.add_vector(name, typeid(std::string));
+        else if(type=="int")
+          attributes.add_vector(name, typeid(int));
+        else if(type=="bool")
+          attributes.add_vector(name, typeid(bool));
+        else
+          throw(gfException("Illegal type in attribute_spec string: "+manager.substitute_globals(atribute_spec)));
+      } 
+
       for (size_t i=0; i< features_inp.size(); ++i) {
         // std::cout<< "FI:" << i<< std::endl;
         auto& featurestr = features_inp.get<std::string>(i);
@@ -892,25 +928,34 @@ namespace geoflow::nodes::basic3d
           // get_attributes
           for(auto& [jname, jval] : cobject["attributes"].items()) {
             // std::cout << jname <<std::endl;
-            if (jval.is_number()) {
-              if (!attributes.has_sub_terminal(jname)) {
-                attributes.add_vector(jname, typeid(float));
-              }
+            if(!attribute_filter_map.count(jname)) continue;
+            
+            if (attributes.sub_terminal(jname).accepts_type(typeid(float))) {
               // std::cout<< "flt:" << jval.get<float>() << std::endl;
-              if (attributes.sub_terminal(jname).accepts_type(typeid(float)))
+              if (jval.is_number_float())
                 attributes.sub_terminal(jname).push_back(jval.get<float>());
               else
                 std::cout<< "inconsistent attribute type for: " << jname << std::endl;
-            } else if(jval.is_string()) {
-              if (!attributes.has_sub_terminal(jname)) {
-                attributes.add_vector(jname, typeid(std::string));
-              }
-              // std::cout<< "str:" << jval.get<std::string>() << std::endl;
-              // std::cout<< "ttype:" << (attributes.sub_terminal(jname).get_types()[0]).name() << std::endl;
-              if (attributes.sub_terminal(jname).accepts_type(typeid(std::string)))
+            } else if (attributes.sub_terminal(jname).accepts_type(typeid(int))) {
+              // std::cout<< "flt:" << jval.get<float>() << std::endl;
+              if (jval.is_number_integer())
+                attributes.sub_terminal(jname).push_back(jval.get<int>());
+              else
+                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+            } else if (attributes.sub_terminal(jname).accepts_type(typeid(bool))) {
+              // std::cout<< "flt:" << jval.get<float>() << std::endl;
+              if (jval.is_boolean())
+                attributes.sub_terminal(jname).push_back(jval.get<bool>());
+              else
+                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+            } else if (attributes.sub_terminal(jname).accepts_type(typeid(std::string))) {
+              // std::cout<< "flt:" << jval.get<float>() << std::endl;
+              if (jval.is_string())
                 attributes.sub_terminal(jname).push_back(jval.get<std::string>());
               else
                 std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+            } else {
+              attributes.sub_terminal(jname).push_back_any(std::any());
             }
           }
           

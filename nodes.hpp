@@ -431,6 +431,7 @@ class CityJSONL2MeshNode : public Node {
   bool bag3d_buildings_mode_ = true;
   bool optimal_lod_ = true;
   std::string cotypes="";
+  std::string atribute_spec=""; // format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name
   // bool filter_by_type = false;
   std::string optimal_lod_value_ = "2.2";
 
@@ -449,8 +450,9 @@ public:
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
     add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     add_param(ParamString(cotypes, "cotypes", "Output only these feature types, comma separated"));
+    add_param(ParamText(atribute_spec, "atribute_spec", "Attribute names and types to output. Format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name"));
     add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
-    add_param(ParamStrMap(lod_filter, key_options, "lod_filter", "Output attribute names"));
+    add_param(ParamStrMap(lod_filter, key_options, "lod_filter", "LoD filter"));
     // add_param(ParamStrMap(feature_type_filter, key_options, "feature_type_filter", "Only output these feature types (put any string longer than 0 as value)"));
   }
 
