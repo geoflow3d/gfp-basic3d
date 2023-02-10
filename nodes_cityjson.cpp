@@ -935,25 +935,25 @@ namespace geoflow::nodes::basic3d
               if (jval.is_number_float())
                 attributes.sub_terminal(jname).push_back(jval.get<float>());
               else
-                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+                std::cout<< "inconsistent attribute type for: " << jname << ". Should be float, but it is " << jval.type_name() << std::endl;
             } else if (attributes.sub_terminal(jname).accepts_type(typeid(int))) {
               // std::cout<< "flt:" << jval.get<float>() << std::endl;
               if (jval.is_number_integer())
                 attributes.sub_terminal(jname).push_back(jval.get<int>());
               else
-                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+                std::cout<< "inconsistent attribute type for: " << jname << ". Should be integer, but it is " << jval.type_name() << std::endl;
             } else if (attributes.sub_terminal(jname).accepts_type(typeid(bool))) {
               // std::cout<< "flt:" << jval.get<float>() << std::endl;
               if (jval.is_boolean())
                 attributes.sub_terminal(jname).push_back(jval.get<bool>());
               else
-                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+                std::cout<< "inconsistent attribute type for: " << jname << ". Should be boolean, but it is " << jval.type_name() << std::endl;
             } else if (attributes.sub_terminal(jname).accepts_type(typeid(std::string))) {
               // std::cout<< "flt:" << jval.get<float>() << std::endl;
               if (jval.is_string())
                 attributes.sub_terminal(jname).push_back(jval.get<std::string>());
               else
-                std::cout<< "inconsistent attribute type for: " << jname << std::endl;
+                std::cout<< "inconsistent attribute type for: " << jname << ". Should be string, but it is " << jval.type_name() << std::endl;
             } else {
               attributes.sub_terminal(jname).push_back_any(std::any());
             }
