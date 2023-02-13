@@ -129,6 +129,7 @@ namespace geoflow::nodes::basic3d
       unsigned vertex_count;
       unsigned index_offset;
       unsigned index_count;
+      unsigned feature_id_count;
       std::vector<double> index_min;
       std::vector<double> index_max;
       std::vector<double> normals_min;
@@ -148,6 +149,7 @@ namespace geoflow::nodes::basic3d
     tinygltf::Node node;
     tinygltf::Mesh mesh;
     tinygltf::Buffer buffer;
+    tinygltf::Buffer buffer_metadata;
 
     // Create a simple material
     // tinygltf::Material mat;
@@ -155,6 +157,8 @@ namespace geoflow::nodes::basic3d
     // mat.doubleSided = true;
     // model.materials.push_back(mat);
     create_materials(model);
+
+    int feature_id_set_idx = 0;
 
     std::vector<arr6f> vertex_vec; // position + normal
     std::vector<float> feature_id_vec; // feature id vertex attribute
@@ -211,7 +215,7 @@ namespace geoflow::nodes::basic3d
       // compute arrays
       {
         // count the nr of vertices and indices stored for this tc
-        unsigned v_cntr = 0, i = 0 ;
+        unsigned v_cntr = 0, i = 0, fid_cntr = 0;
         std::set<arr6f> vertex_set;
         std::map<arr6f, unsigned> vertex_map;
         for (auto &triangle : tc)
@@ -251,6 +255,7 @@ namespace geoflow::nodes::basic3d
               vertex_vec.back()[4] = n[1]/l;
               vertex_vec.back()[5] = n[2]/l;
               feature_id_vec.push_back(feature_id);
+              fid_cntr++;
               positions_box.add(arr3f{vertex[0], vertex[1], vertex[2]});
             }
             index_vec.push_back(vertex_map[vertex]);
@@ -263,6 +268,7 @@ namespace geoflow::nodes::basic3d
         inf.index_count = i;
         inf.index_min.push_back(0);
         inf.index_max.push_back(v_cntr-1);
+        inf.feature_id_count = fid_cntr;
 
         Box normals_box;
         normals_box.add(normals);
@@ -286,7 +292,7 @@ namespace geoflow::nodes::basic3d
         v_offset += v_cntr;
         i_offset += i;
       }
-      feature_id += 1;
+      feature_id += 1.0;
       // TODO: the feature ID should be selectable (eg it should be the
       // 'objectid' so that a feature can reference an external object)
       // add feature attribute values
@@ -338,7 +344,6 @@ namespace geoflow::nodes::basic3d
       acc_indices.type          = TINYGLTF_TYPE_SCALAR;
       acc_indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
       acc_indices.count         = inf.index_count;
-      // FIXME: "Declared minimum value for this component (-0.7280862927436829) does not match actual minimum (-0.6278660297393799)."
       acc_indices.minValues     = { inf.index_min };
       acc_indices.maxValues     = { inf.index_max };
       model.accessors.push_back(acc_indices);
@@ -369,8 +374,11 @@ namespace geoflow::nodes::basic3d
       acc_normals.type          = TINYGLTF_TYPE_VEC3;
       acc_normals.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
       acc_normals.count         = inf.vertex_count;
-      acc_normals.minValues     = inf.normals_min;
-      acc_normals.maxValues     = inf.normals_max;
+      // FIXME: "Declared minimum value for this component (-0.7280862927436829) does not match actual minimum (-0.6278660297393799)."
+      // FIXME: "Accessor element at index .. is NaN." This occurs occaisonally for some objects, for the NORMALS accesor
+      // FIXME: handle degenerate triangles
+//      acc_normals.minValues     = inf.normals_min;
+//      acc_normals.maxValues     = inf.normals_max;
       model.accessors.push_back(acc_normals);
       primitive.attributes["NORMAL"] =
         model.accessors.size() - 1; // The index of the accessor for normals
@@ -387,16 +395,16 @@ namespace geoflow::nodes::basic3d
       acc_feature_ids.type             = TINYGLTF_TYPE_SCALAR;
       acc_feature_ids.normalized       = false;
       acc_feature_ids.componentType    = TINYGLTF_COMPONENT_TYPE_FLOAT;
-      acc_feature_ids.count            = inf.vertex_count;
+      acc_feature_ids.count            = inf.feature_id_count;
       // This is an int, because tinygltf::Value only knows 'int' (no unsigned etc).
       int id_acc_feature_ids = model.accessors.size();
       model.accessors.push_back(acc_feature_ids);
-      std::string fid = "_FEATURE_ID_" + std::to_string(id_acc_feature_ids);
-      primitive.attributes[fid] =
-        model.accessors.size() - 1; // The index of the accessor for normals
+//      std::string fid = "_FEATURE_ID_" + std::to_string(id_acc_feature_ids);
+      std::string fid = "_FEATURE_ID_" + std::to_string(feature_id_set_idx );
+      primitive.attributes[fid] = id_acc_feature_ids;
 
       tinygltf::ExtensionMap primitive_extensions;
-      primitive_extensions["EXT_mesh_features"] = create_ext_mesh_features(1, id_acc_feature_ids, 0);
+      primitive_extensions["EXT_mesh_features"] = create_ext_mesh_features(1, feature_id_set_idx, 0);
 
       primitive.material   = get_material_id(ftype);
       primitive.mode       = TINYGLTF_MODE_TRIANGLES;
@@ -443,19 +451,18 @@ namespace geoflow::nodes::basic3d
     tinygltf::BufferView bf_attr_2_offsets;
     tinygltf::BufferView bf_attr_2;
     tinygltf::BufferView bf_attr_3;
-    // Everything goes into the same buffer
-    auto byteOffset_attr_1 =
-      byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
-    bf_attr_1.buffer     = 0;
-    bf_attr_1.byteOffset = byteOffset_attr_1;
+//     Everything goes into the same buffer
+//    auto byteOffset_attr_1 =
+//      byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
+    bf_attr_1.buffer     = 1;
+//    bf_attr_1.byteOffset = byteOffset_attr_1;
     bf_attr_1.byteLength = attr_1_vec.size() * sizeof(unsigned);
     bf_attr_1.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
     auto id_bf_attr_1    = model.bufferViews.size();
     model.bufferViews.push_back(bf_attr_1);
 
-    auto byteOffset_attr_2_offsets =
-      byteOffset_attr_1 + attr_1_vec.size() * sizeof(unsigned);
-    bf_attr_2_offsets.buffer     = 0;
+    auto byteOffset_attr_2_offsets = attr_1_vec.size() * sizeof(unsigned);
+    bf_attr_2_offsets.buffer     = 1;
     bf_attr_2_offsets.byteOffset = byteOffset_attr_2_offsets;
     bf_attr_2_offsets.byteLength =
       attr_2_string_offset_vec.size() * sizeof(unsigned long);
@@ -466,7 +473,7 @@ namespace geoflow::nodes::basic3d
     auto byteOffset_attr_2 =
       byteOffset_attr_2_offsets +
       attr_2_string_offset_vec.size() * sizeof(unsigned long);
-    bf_attr_2.buffer     = 0;
+    bf_attr_2.buffer     = 1;
     bf_attr_2.byteOffset = byteOffset_attr_2;
     bf_attr_2.byteLength = attr_2_vec.size() * sizeof(char);
     bf_attr_2.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
@@ -475,7 +482,7 @@ namespace geoflow::nodes::basic3d
 
     auto byteOffset_attr_3 =
       byteOffset_attr_2 + attr_3_vec.size() * sizeof(unsigned short);
-    bf_attr_3.buffer     = 0;
+    bf_attr_3.buffer     = 1;
     bf_attr_3.byteOffset = byteOffset_attr_3;
     bf_attr_3.byteLength = attr_3_vec.size() * sizeof(unsigned short);
     bf_attr_3.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
@@ -510,18 +517,9 @@ namespace geoflow::nodes::basic3d
 
 
     // Copy contents to the buffer
-    // TODO: we won't actually know upfront how many attribute vectors we have and
-    // what is their type
-    unsigned long total_attr_vec_size =
-      (attr_1_vec.size() * sizeof(unsigned) +
-       attr_3_vec.size() * sizeof(unsigned short) +
-       attr_2_string_offset_vec.size() * sizeof(unsigned long) +
-       attr_2_vec.size() * sizeof(char));
-
     buffer.data.resize(index_vec.size() * sizeof(unsigned) +
                        vertex_vec.size() * 6 * sizeof(float) +
-                       feature_id_vec.size() * sizeof(float) +
-                       total_attr_vec_size);
+                       feature_id_vec.size() * sizeof(float));
     auto ptr_end_of_data = buffer.data.data();
     memcpy(ptr_end_of_data,
            (unsigned char*)index_vec.data(),
@@ -534,8 +532,17 @@ namespace geoflow::nodes::basic3d
     memcpy(ptr_end_of_data,
            (unsigned char*)feature_id_vec.data(),
            feature_id_vec.size() * sizeof(float));
+
+    // TODO: we won't actually know upfront how many attribute vectors we have and
+    // what is their type
+    unsigned long total_attr_vec_size =
+      (attr_1_vec.size() * sizeof(unsigned) +
+       attr_3_vec.size() * sizeof(unsigned short) +
+       attr_2_string_offset_vec.size() * sizeof(unsigned long) +
+       attr_2_vec.size() * sizeof(char));
     // TODO: For each attribute vector, we have to copy the contents to the buffer
-    ptr_end_of_data += feature_id_vec.size() * sizeof(float);
+    buffer_metadata.data.resize(total_attr_vec_size);
+    ptr_end_of_data = buffer_metadata.data.data();
     memcpy(ptr_end_of_data,
            (unsigned char*)attr_1_vec.data(),
            attr_1_vec.size() * sizeof(unsigned));
@@ -601,6 +608,7 @@ namespace geoflow::nodes::basic3d
     model.scenes.push_back(scene);
     model.defaultScene = 0;
     model.buffers.push_back(buffer);
+    model.buffers.push_back(buffer_metadata);
     model.extensions = root_extensions;
     model.extensionsUsed.emplace_back("EXT_mesh_features");
     model.extensionsUsed.emplace_back("EXT_structural_metadata");
