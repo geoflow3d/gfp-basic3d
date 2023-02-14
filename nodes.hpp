@@ -471,6 +471,7 @@ class GLTFWriterNode : public Node {
   bool binary_ = true;
   bool relative_to_center = false;
   std::string CRS_ = "EPSG:4978";
+  std::string feature_id_attribute_;
 
 public:
   using Node::Node;
@@ -479,6 +480,7 @@ public:
     add_vector_input("triangles", typeid(TriangleCollection));
     add_vector_input("normals", typeid(vec3f));
     add_vector_input("feature_type", typeid(std::string));
+    add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
     // declare parameters
     add_param(ParamString(CRS_, "CRS", "Coordinate reference system text. Can be EPSG code, WKT definition, etc."));
@@ -488,6 +490,7 @@ public:
     add_param(ParamBool(pretty_print_, "pretty_print", "pretty_print"));
     add_param(ParamBool(binary_, "binary", "binary"));
     add_param(ParamBool(relative_to_center, "relative_to_center", "relative_to_center"));
+    add_param(ParamString(feature_id_attribute_, "feature_id", "The feature attribute to use as the _FEATURE_ID vertex attribute value in the EXT_mesh_features extension. The attribute value must be cast-able to a float. If empty, it will be a sequential ID per feature."));
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }

@@ -122,6 +122,7 @@ namespace geoflow::nodes::basic3d
   }
 
   void GLTFWriterNode::process() {
+    std::cout << std::endl;
     typedef std::array<float,6> arr6f;
     struct TCInfo {
       size_t i_input;
@@ -141,6 +142,7 @@ namespace geoflow::nodes::basic3d
     auto& triangle_collections_inp = vector_input("triangles");
     auto& normals_inp = vector_input("normals");
     auto& featuretype_inp = vector_input("feature_type");
+    auto& attributes_inp = poly_input("attributes");
 
     tinygltf::Model model;
     model.asset.generator = "Geoflow";
@@ -190,6 +192,36 @@ namespace geoflow::nodes::basic3d
     // probably there could be more than ~65k individual features that we need
     // to identify in one gltf file.
     float feature_id = 0.0;
+    float feature_id_seq = 0.0;
+    // Check if 'feature_id' is provided, and the attribute value of the first
+    // feature can be cast to a float. If not true, then use sequential ID.
+    // It is ok to only check the first feature, because each subequent feature
+    // is supposed to have the same type, since they have been processed already
+    // put into a vector.
+    for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
+      if (!triangle_collections_inp.get_data_vec()[i].has_value())
+        continue;
+      if (!feature_id_attribute_.empty()) {
+        std::cout << "feature_id was provided, checking for type compatibility" << std::endl;
+        for (auto& term : attributes_inp.sub_terminals()) {
+          if (!term->get_data_vec()[i].has_value())
+            continue;
+          auto tname = term->get_full_name();
+          if (tname == feature_id_attribute_) {
+            if (term->accepts_type(typeid(bool))) {
+              std::cout << "the type of the value of " << tname << " in the first feature is boolean and it cannot be reliably cast to a float. Defaulting to sequential _FEATURE_ID-s." << std::endl;
+              feature_id_attribute_ = "";
+            } else if (term->accepts_type(typeid(std::string))) {
+              std::cout << "the type of the value of " << tname << " in the first feature is string and it cannot be reliably cast to a float. Defaulting to sequential _FEATURE_ID-s." << std::endl;
+              feature_id_attribute_ = "";
+            }
+          }
+        }
+      }
+      break;
+    }
+
+
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
     // determine approximate centerpoint
@@ -213,6 +245,30 @@ namespace geoflow::nodes::basic3d
       if (tc.vertex_count() == 0)
         continue;
       auto& normals = normals_inp.get<vec3f>(i);
+
+      // TODO: the feature ID should be selectable (eg it should be the
+      // 'objectid' so that a feature can reference an external object)
+      // add feature attribute values
+      if (feature_id_attribute_.empty()) {
+        feature_id = feature_id_seq;
+      } else {
+        // Using a feature attribute value as the _FEATURE_ID vertex attribute
+        for (auto& term : attributes_inp.sub_terminals()) {
+          if (!term->get_data_vec()[i].has_value())
+            continue;
+          auto tname = term->get_name();
+          if (tname == feature_id_attribute_) {
+            if (term->accepts_type(typeid(float))) {
+              feature_id = term->get<const float&>(i);
+            } else if (term->accepts_type(typeid(int))) {
+              feature_id = (float)term->get<const int&>(i);
+            } else {
+              std::cout << "the type of " << term << " is not int or float for value " << term->get<const std::string&>(i) << " and it cannot be used as a _FEATURE_ID vertex attribute, which requires a float type. Defaulting to the sequence value for this feature's _FEATURE_ID." << std::endl;
+              feature_id = feature_id_seq;
+            }
+          }
+        }
+      }
 
       TCInfo inf;
       inf.i_input = i;
@@ -297,10 +353,7 @@ namespace geoflow::nodes::basic3d
         v_offset += v_cntr;
         i_offset += i;
       }
-      feature_id += 1.0;
-      // TODO: the feature ID should be selectable (eg it should be the
-      // 'objectid' so that a feature can reference an external object)
-      // add feature attribute values
+      feature_id_seq += 1.0;
       attr_1_vec.push_back(i);
       attr_3_vec.push_back(9999);
       // for string attributes, we also need to keep track of the offsets
