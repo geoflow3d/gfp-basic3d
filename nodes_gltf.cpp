@@ -169,22 +169,25 @@ namespace geoflow::nodes::basic3d
     // TODO: we need to protect against invalid values, eg. bouwjaar=-1 or so
     // TODO: these three vectors are hardcoded for now, for testing. Normally,
     //  we would want to construct these vectors dynamically, based on what
-    //  attribute inputs we get.
-    std::vector<unsigned> attr_1_vec; // objectid
+    //  attribute inputs we get. Somehow we need to init the attribute value
+    //  container vectors with the types that are coming in from the
+    //  'attributes' input terminal. Plus, make sure that these types are also
+    //  declared for the bufferViews and the extension-accessors.
+    std::vector<int> attr_objectid_vec; // objectid
     // We store the string attributes in a contiguous vector of char-s. This
     // makes it simpler to calculate its size and copy it to the buffer.
-    std::vector<char>          attr_2_vec; // bagpandid
+    std::vector<char>          attr_bagpandid_vec; // bagpandid
     // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
     //  the data just won't show up in the viewer, without giving any warnings.
     //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
     //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
     //  that's a lie.
     unsigned              string_offset            = 0;
-    std::vector<unsigned> attr_2_string_offset_vec = {
+    std::vector<unsigned> attr_bagpandid_string_offset_vec = {
       string_offset,
     }; // offsets for strings
        // https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
-    std::vector<unsigned short> attr_3_vec; // bouwjaar
+    std::vector<int> attr_bouwjaar_vec; // bouwjaar
     unsigned                    v_offset = 0;
     unsigned                    i_offset = 0;
     // It's a float, because glTF accessors do not support UNSIGNED_INT types
@@ -193,6 +196,18 @@ namespace geoflow::nodes::basic3d
     // to identify in one gltf file.
     float feature_id = 0.0;
     float feature_id_seq = 0.0;
+    // FIXME: using the 'objectid' values as _FEATURE_ID, together with feature
+    //  attribute values, silently breaks cesium. The features are rendered and
+    //  they show up, but there is something wrong with them, because they are
+    //  not recognized as 3dtilefeatures when trying to pick them on the screen.
+    //  Such that Cesium.viewer.scene.pick(movement.endPosition); returns an
+    //  'undefined' when picking a 3d tile feature. So for now we only do
+    //  sequential featureids.
+    // We want to use the 'objectid' as _FEATURE_ID, because
+    //  otherwise it'll be difficult to get the metadata from an API for the
+    //  selected feature.
+    //  https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_mesh_features#referencing-external-resources-with-feature-ids
+    feature_id_attribute_ = "";
     // Check if 'feature_id' is provided, and the attribute value of the first
     // feature can be cast to a float. If not true, then use sequential ID.
     // It is ok to only check the first feature, because each subequent feature
@@ -245,10 +260,7 @@ namespace geoflow::nodes::basic3d
       if (tc.vertex_count() == 0)
         continue;
       auto& normals = normals_inp.get<vec3f>(i);
-
-      // TODO: the feature ID should be selectable (eg it should be the
-      // 'objectid' so that a feature can reference an external object)
-      // add feature attribute values
+      
       if (feature_id_attribute_.empty()) {
         feature_id = feature_id_seq;
       } else {
@@ -354,15 +366,46 @@ namespace geoflow::nodes::basic3d
         i_offset += i;
       }
       feature_id_seq += 1.0;
-      attr_1_vec.push_back(i);
-      attr_3_vec.push_back(9999);
-      // for string attributes, we also need to keep track of the offsets
-      std::string string_attr = "0603100000023033";
-      string_offset += string_attr.size() * sizeof(char);
-      for (auto s : string_attr) {
-        attr_2_vec.emplace_back(s);
+      // TODO: select the attributes from those that are declared in a parameter
+      for (auto& term : attributes_inp.sub_terminals()) {
+        if (!term->get_data_vec()[i].has_value())
+          continue;
+        const auto& tname = term->get_name();
+        if (tname == "objectid") {
+          if (term->accepts_type(typeid(int))) {
+            attr_objectid_vec.push_back(term->get<const int&>(i));
+          } else {
+            std::cout << "feature attribute (objectid) value not an int, inserting " << i << " instead" << std::endl;
+            attr_objectid_vec.push_back((int)i);
+          }
+        } else if (tname == "bagpandid") {
+          if (term->accepts_type(typeid(std::string))) {
+            std::string string_attr = term->get<const std::string&>(i);
+            // for string attributes, we also need to keep track of the offsets
+            string_offset += string_attr.size() * sizeof(char);
+            for (auto s : string_attr) {
+              attr_bagpandid_vec.emplace_back(s);
+            }
+            attr_bagpandid_string_offset_vec.push_back(string_offset);
+          } else {
+            std::cout << "feature attribute (bagpandid) value not a string, inserting 'invalid' instead" << std::endl;
+            std::string string_attr = "invalid";
+            // for string attributes, we also need to keep track of the offsets
+            string_offset += string_attr.size() * sizeof(char);
+            for (auto s : string_attr) {
+              attr_bagpandid_vec.emplace_back(s);
+            }
+            attr_bagpandid_string_offset_vec.push_back(string_offset);
+          }
+        } else if (tname == "bouwjaar") {
+          if (term->accepts_type(typeid(int))) {
+            attr_bouwjaar_vec.push_back(term->get<const int&>(i));
+          } else {
+            std::cout << "feature attribute (bouwjaar) value not an int, inserting 9999 instead" << std::endl;
+            attr_bouwjaar_vec.push_back(9999);
+          }
+        }
       }
-      attr_2_string_offset_vec.push_back(string_offset);
 
       info_vec.push_back(inf);
     }
@@ -477,7 +520,7 @@ namespace geoflow::nodes::basic3d
     // because tinygltf::Value("somestring") thinks that "somestring" is a bool
     prop_objectid["description"] = tinygltf::Value((std::string)"objectid property description");
     prop_objectid["type"] = tinygltf::Value((std::string)"SCALAR");
-    prop_objectid["componentType"] = tinygltf::Value((std::string)"UINT32");
+    prop_objectid["componentType"] = tinygltf::Value((std::string)"INT32");
     prop_objectid["required"] = tinygltf::Value(true);
     tinygltf::Value::Object prop_bagpandid;
     prop_bagpandid["description"] = tinygltf::Value((std::string)"bagpandid property description");
@@ -485,7 +528,7 @@ namespace geoflow::nodes::basic3d
     tinygltf::Value::Object prop_bouwjaar;
     prop_bouwjaar["description"] = tinygltf::Value((std::string)"bouwjaar property description");
     prop_bouwjaar["type"] = tinygltf::Value((std::string)"SCALAR");
-    prop_bouwjaar["componentType"] = tinygltf::Value((std::string)"UINT16");
+    prop_bouwjaar["componentType"] = tinygltf::Value((std::string)"INT32");
     tinygltf::Value::Object building_class_properties;
     building_class_properties["objectid"] = tinygltf::Value(prop_objectid);
     building_class_properties["bagpandid"] = tinygltf::Value(prop_bagpandid);
@@ -505,63 +548,63 @@ namespace geoflow::nodes::basic3d
     // https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_structural_metadata#ext_structural_metadata
     // We need a bufferView for each feature attribute, plus the string offsets
     // in case of string attributes.
-    tinygltf::BufferView bf_attr_1;
-    tinygltf::BufferView bf_attr_2_offsets;
-    tinygltf::BufferView bf_attr_2;
-    tinygltf::BufferView bf_attr_3;
+    tinygltf::BufferView bf_attr_objectid;
+    tinygltf::BufferView bf_attr_bagpandid_offsets;
+    tinygltf::BufferView bf_attr_bagpandid;
+    tinygltf::BufferView bf_attr_bouwjaar;
 //     Everything goes into the same buffer
-    auto byteOffset_attr_1 =
+    auto byteOffset_attr_objectid =
       byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
-    bf_attr_1.buffer     = buffer_idx;
-    bf_attr_1.byteOffset = byteOffset_attr_1;
-    bf_attr_1.byteLength = attr_1_vec.size() * sizeof(unsigned);
-    bf_attr_1.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_1    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_1);
+    bf_attr_objectid.buffer     = buffer_idx;
+    bf_attr_objectid.byteOffset = byteOffset_attr_objectid;
+    bf_attr_objectid.byteLength = attr_objectid_vec.size() * sizeof(int);
+    bf_attr_objectid.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+    auto id_bf_attr_objectid    = model.bufferViews.size();
+    model.bufferViews.push_back(bf_attr_objectid);
 
-    auto byteOffset_attr_2_offsets = byteOffset_attr_1 + attr_1_vec.size() * sizeof(unsigned);
-    bf_attr_2_offsets.buffer     = buffer_idx;
-    bf_attr_2_offsets.byteOffset = byteOffset_attr_2_offsets;
-    bf_attr_2_offsets.byteLength =
-      attr_2_string_offset_vec.size() * sizeof(unsigned);
-    bf_attr_2_offsets.target  = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_2_offsets = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_2_offsets);
+    auto byteOffset_attr_bagpandid_offsets = byteOffset_attr_objectid + attr_objectid_vec.size() * sizeof(int);
+    bf_attr_bagpandid_offsets.buffer     = buffer_idx;
+    bf_attr_bagpandid_offsets.byteOffset = byteOffset_attr_bagpandid_offsets;
+    bf_attr_bagpandid_offsets.byteLength =
+      attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
+    bf_attr_bagpandid_offsets.target  = TINYGLTF_TARGET_ARRAY_BUFFER;
+    auto id_bf_attr_bagpandid_offsets = model.bufferViews.size();
+    model.bufferViews.push_back(bf_attr_bagpandid_offsets);
 
-    auto byteOffset_attr_2 =
-      byteOffset_attr_2_offsets +
-      attr_2_string_offset_vec.size() * sizeof(unsigned);
-    bf_attr_2.buffer     = buffer_idx;
-    bf_attr_2.byteOffset = byteOffset_attr_2;
-    bf_attr_2.byteLength = attr_2_vec.size() * sizeof(char);
-    bf_attr_2.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_2    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_2);
+    auto byteOffset_attr_bagpandid =
+      byteOffset_attr_bagpandid_offsets +
+      attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
+    bf_attr_bagpandid.buffer     = buffer_idx;
+    bf_attr_bagpandid.byteOffset = byteOffset_attr_bagpandid;
+    bf_attr_bagpandid.byteLength = attr_bagpandid_vec.size() * sizeof(char);
+    bf_attr_bagpandid.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+    auto id_bf_attr_bagpandid    = model.bufferViews.size();
+    model.bufferViews.push_back(bf_attr_bagpandid);
 
-    auto byteOffset_attr_3 =
-      byteOffset_attr_2 + attr_2_vec.size() * sizeof(char);
-    bf_attr_3.buffer     = buffer_idx;
-    bf_attr_3.byteOffset = byteOffset_attr_3;
-    bf_attr_3.byteLength = attr_3_vec.size() * sizeof(unsigned short);
-    bf_attr_3.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_3    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_3);
+    auto byteOffset_attr_bouwjaar =
+      byteOffset_attr_bagpandid + attr_bagpandid_vec.size() * sizeof(char);
+    bf_attr_bouwjaar.buffer     = buffer_idx;
+    bf_attr_bouwjaar.byteOffset = byteOffset_attr_bouwjaar;
+    bf_attr_bouwjaar.byteLength = attr_bouwjaar_vec.size() * sizeof(int);
+    bf_attr_bouwjaar.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+    auto id_bf_attr_bouwjaar    = model.bufferViews.size();
+    model.bufferViews.push_back(bf_attr_bouwjaar);
 
-    tinygltf::Value::Object prop_tbl_attr_1;
-    prop_tbl_attr_1["values"] = tinygltf::Value((int)id_bf_attr_1);
-    tinygltf::Value::Object prop_tbl_attr_2;
-    prop_tbl_attr_2["values"] = tinygltf::Value((int)id_bf_attr_2);
-    prop_tbl_attr_2["stringOffsets"] = tinygltf::Value((int)id_bf_attr_2_offsets);
-    prop_tbl_attr_2["stringOffsetType"] = tinygltf::Value((std::string)"UINT32");
-    tinygltf::Value::Object prop_tbl_attr_3;
-    prop_tbl_attr_3["values"] = tinygltf::Value((int)id_bf_attr_3);
+    tinygltf::Value::Object prop_tbl_attr_objectid;
+    prop_tbl_attr_objectid["values"] = tinygltf::Value((int)id_bf_attr_objectid);
+    tinygltf::Value::Object prop_tbl_attr_bagpandid;
+    prop_tbl_attr_bagpandid["values"] = tinygltf::Value((int)id_bf_attr_bagpandid);
+    prop_tbl_attr_bagpandid["stringOffsets"] = tinygltf::Value((int)id_bf_attr_bagpandid_offsets);
+    prop_tbl_attr_bagpandid["stringOffsetType"] = tinygltf::Value((std::string)"UINT32");
+    tinygltf::Value::Object prop_tbl_attr_bouwjaar;
+    prop_tbl_attr_bouwjaar["values"] = tinygltf::Value((int)id_bf_attr_bouwjaar);
     tinygltf::Value::Object properties_building;
-    properties_building["objectid"] = tinygltf::Value(prop_tbl_attr_1);
-    properties_building["bagpandid"] = tinygltf::Value(prop_tbl_attr_2);
-    properties_building["bouwjaar"] = tinygltf::Value(prop_tbl_attr_3);
+    properties_building["objectid"] = tinygltf::Value(prop_tbl_attr_objectid);
+    properties_building["bagpandid"] = tinygltf::Value(prop_tbl_attr_bagpandid);
+    properties_building["bouwjaar"] = tinygltf::Value(prop_tbl_attr_bouwjaar);
     tinygltf::Value::Object property_table_building;
     property_table_building["class"] = tinygltf::Value((std::string)"building");
-    property_table_building["count"] = tinygltf::Value((int)attr_1_vec.size());
+    property_table_building["count"] = tinygltf::Value((int)attr_objectid_vec.size());
     property_table_building["name"] = tinygltf::Value((std::string)"building propertyTable name");
     property_table_building["properties"] = tinygltf::Value(properties_building);
 
@@ -576,10 +619,10 @@ namespace geoflow::nodes::basic3d
     // TODO: we won't actually know upfront how many attribute vectors we have and
     //  what is their type
     unsigned long total_attr_vec_size =
-      (attr_1_vec.size() * sizeof(unsigned) +
-       attr_2_string_offset_vec.size() * sizeof(unsigned) +
-       attr_2_vec.size() * sizeof(char) +
-       attr_3_vec.size() * sizeof(unsigned short));
+      (attr_objectid_vec.size() * sizeof(int) +
+       attr_bagpandid_string_offset_vec.size() * sizeof(unsigned) +
+       attr_bagpandid_vec.size() * sizeof(char) +
+       attr_bouwjaar_vec.size() * sizeof(int));
     // TODO: For each attribute vector, we have to copy the contents to the buffer
     // Copy contents to the buffer
     buffer.data.resize(index_vec.size() * sizeof(unsigned) +
@@ -600,20 +643,20 @@ namespace geoflow::nodes::basic3d
            feature_id_vec.size() * sizeof(float));
     ptr_end_of_data += feature_id_vec.size() * sizeof(float);
     memcpy(ptr_end_of_data,
-           (unsigned char*)attr_1_vec.data(),
-           attr_1_vec.size() * sizeof(unsigned));
-    ptr_end_of_data += attr_1_vec.size() * sizeof(unsigned);
+           (unsigned char*)attr_objectid_vec.data(),
+           attr_objectid_vec.size() * sizeof(int));
+    ptr_end_of_data += attr_objectid_vec.size() * sizeof(int);
     memcpy(ptr_end_of_data,
-           (unsigned char*)attr_2_string_offset_vec.data(),
-           attr_2_string_offset_vec.size() * sizeof(unsigned));
-    ptr_end_of_data += attr_2_string_offset_vec.size() * sizeof(unsigned);
+           (unsigned char*)attr_bagpandid_string_offset_vec.data(),
+           attr_bagpandid_string_offset_vec.size() * sizeof(unsigned));
+    ptr_end_of_data += attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
     memcpy(ptr_end_of_data,
-           (unsigned char*)attr_2_vec.data(),
-           attr_2_vec.size() * sizeof(char));
-    ptr_end_of_data += attr_2_vec.size() * sizeof(char);
+           (unsigned char*)attr_bagpandid_vec.data(),
+           attr_bagpandid_vec.size() * sizeof(char));
+    ptr_end_of_data += attr_bagpandid_vec.size() * sizeof(char);
     memcpy(ptr_end_of_data,
-           (unsigned char*)attr_3_vec.data(),
-           attr_3_vec.size() * sizeof(unsigned short));
+           (unsigned char*)attr_bouwjaar_vec.data(),
+           attr_bouwjaar_vec.size() * sizeof(int));
 
     // std::cout << std::endl;
     // for(unsigned i=0; i<index_vec.size(); ++i) {
