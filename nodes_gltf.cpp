@@ -143,11 +143,20 @@ namespace geoflow::nodes::basic3d
       std::vector<double> normals_max;
       std::vector<double> positions_max;
     };
+    struct StringAttributeOffset {
+      unsigned current_offset{};
+      std::vector<unsigned> offsets;
+    };
 
     auto& triangle_collections_inp = vector_input("triangles");
     auto& normals_inp = vector_input("normals");
     auto& featuretype_inp = vector_input("feature_type");
     auto& attributes_inp = poly_input("attributes");
+
+    if (metadata_class_name_.empty()) {
+      std::cout << "metadata_class must be provided" << std::endl;
+      return ;
+    }
 
     tinygltf::Model model;
     model.asset.generator = "Geoflow";
@@ -156,6 +165,12 @@ namespace geoflow::nodes::basic3d
     tinygltf::Node node;
     tinygltf::Mesh mesh;
     tinygltf::Buffer buffer;
+
+    // We need to get the attribute values from the input and create contiguous
+    //  arrays from them, so that they can be added as a tightly-packed array
+    //  to the buffer.
+    std::map<std::string, std::vector<std::any>> feature_attribute_map{};
+    std::map<std::string, StringAttributeOffset> feature_attribute_string_offsets{};
 
     // Create a simple material
     // tinygltf::Material mat;
@@ -172,28 +187,6 @@ namespace geoflow::nodes::basic3d
     std::vector<float> feature_id_vec; // feature id vertex attribute
     std::vector<unsigned> index_vec;
     std::vector<TCInfo>   info_vec;
-    // TODO: we need to protect against invalid values, eg. bouwjaar=-1 or so
-    // TODO: these three vectors are hardcoded for now, for testing. Normally,
-    //  we would want to construct these vectors dynamically, based on what
-    //  attribute inputs we get. Somehow we need to init the attribute value
-    //  container vectors with the types that are coming in from the
-    //  'attributes' input terminal. Plus, make sure that these types are also
-    //  declared for the bufferViews and the extension-accessors.
-    std::vector<int> attr_objectid_vec; // objectid
-    // We store the string attributes in a contiguous vector of char-s. This
-    // makes it simpler to calculate its size and copy it to the buffer.
-    std::vector<char>          attr_bagpandid_vec; // bagpandid
-    // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
-    //  the data just won't show up in the viewer, without giving any warnings.
-    //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
-    //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
-    //  that's a lie.
-    unsigned              string_offset            = 0;
-    std::vector<unsigned> attr_bagpandid_string_offset_vec = {
-      string_offset,
-    }; // offsets for strings
-       // https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
-    std::vector<int> attr_bouwjaar_vec; // bouwjaar
     unsigned                    v_offset = 0;
     unsigned                    i_offset = 0;
     // It's a float, because glTF accessors do not support UNSIGNED_INT types
@@ -230,7 +223,7 @@ namespace geoflow::nodes::basic3d
         for (auto& term : attributes_inp.sub_terminals()) {
           if (!term->get_data_vec()[i].has_value())
             continue;
-          auto tname = term->get_full_name();
+          const auto& tname = term->get_name();
           if (tname == feature_id_attribute_) {
             if (term->accepts_type(typeid(bool))) {
               std::cout << "the type of the value of " << tname << " in the first feature is boolean and it cannot be reliably cast to a float. Defaulting to sequential _FEATURE_ID-s." << std::endl;
@@ -245,6 +238,25 @@ namespace geoflow::nodes::basic3d
       break;
     }
 
+    // Init the feature attribute container
+    for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
+      if (!triangle_collections_inp.get_data_vec()[i].has_value())
+        continue;
+      std::cout << "initializing attribute container" << std::endl;
+      for (auto& term : attributes_inp.sub_terminals()) {
+        if (!term->get_data_vec()[i].has_value())
+          continue;
+        const auto& tname = term->get_name();
+        feature_attribute_map.insert({tname, std::vector<std::any>()});
+        if (term->accepts_type(typeid(std::string))) {
+          StringAttributeOffset soff;
+          soff.current_offset = 0;
+          soff.offsets = {0};
+          feature_attribute_string_offsets.insert({tname, soff});
+        }
+      }
+      break;
+    }
 
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
@@ -376,44 +388,34 @@ namespace geoflow::nodes::basic3d
         i_offset += i;
       }
       feature_id_seq += 1.0;
-      // TODO: select the attributes from those that are declared in a parameter
+      // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
+      //  the data just won't show up in the viewer, without giving any warnings.
+      //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
+      //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
+      //  that's a lie.
       for (auto& term : attributes_inp.sub_terminals()) {
         if (!term->get_data_vec()[i].has_value())
           continue;
         const auto& tname = term->get_name();
-        if (tname == "objectid") {
-          if (term->accepts_type(typeid(int))) {
-            attr_objectid_vec.push_back(term->get<const int&>(i));
-          } else {
-            std::cout << "feature attribute (objectid) value not an int, inserting " << i << " instead" << std::endl;
-            attr_objectid_vec.push_back((int)i);
+        if (term->accepts_type(typeid(bool))) {
+          feature_attribute_map[tname].emplace_back(term->get<const bool&>(i));
+        } else if (term->accepts_type(typeid(int))) {
+          feature_attribute_map[tname].emplace_back(term->get<const int&>(i));
+        } else if (term->accepts_type(typeid(float))) {
+          feature_attribute_map[tname].emplace_back(term->get<const float&>(i));
+        } else if (term->accepts_type(typeid(std::string))) {
+          std::string string_attr = term->get<const std::string&>(i);
+          // We store the string attributes in a contiguous vector of char-s. This
+          // makes it simpler to calculate its size and copy it to the buffer.
+          for (char s : string_attr) {
+            feature_attribute_map[tname].emplace_back(s);
           }
-        } else if (tname == "bagpandid") {
-          if (term->accepts_type(typeid(std::string))) {
-            std::string string_attr = term->get<const std::string&>(i);
-            // for string attributes, we also need to keep track of the offsets
-            string_offset += string_attr.size() * sizeof(char);
-            for (auto s : string_attr) {
-              attr_bagpandid_vec.emplace_back(s);
-            }
-            attr_bagpandid_string_offset_vec.push_back(string_offset);
-          } else {
-            std::cout << "feature attribute (bagpandid) value not a string, inserting 'invalid' instead" << std::endl;
-            std::string string_attr = "invalid";
-            // for string attributes, we also need to keep track of the offsets
-            string_offset += string_attr.size() * sizeof(char);
-            for (auto s : string_attr) {
-              attr_bagpandid_vec.emplace_back(s);
-            }
-            attr_bagpandid_string_offset_vec.push_back(string_offset);
-          }
-        } else if (tname == "bouwjaar") {
-          if (term->accepts_type(typeid(int))) {
-            attr_bouwjaar_vec.push_back(term->get<const int&>(i));
-          } else {
-            std::cout << "feature attribute (bouwjaar) value not an int, inserting 9999 instead" << std::endl;
-            attr_bouwjaar_vec.push_back(9999);
-          }
+          // For string attributes, we also need to keep track of the offsets.
+          auto string_byteLength = string_attr.size() * sizeof(char);
+          feature_attribute_string_offsets[tname].current_offset += string_byteLength;
+          feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
+        } else {
+          std::cout << "feature attribute " << tname << " is not bool/int/float/string" << std::endl;
         }
       }
 
@@ -512,7 +514,6 @@ namespace geoflow::nodes::basic3d
       // This is an int, because tinygltf::Value only knows 'int' (no unsigned etc).
       int id_acc_feature_ids = model.accessors.size();
       model.accessors.push_back(acc_feature_ids);
-//      std::string fid = "_FEATURE_ID_" + std::to_string(id_acc_feature_ids);
       std::string fid = "_FEATURE_ID_" + std::to_string(feature_id_set_idx );
       primitive.attributes[fid] = id_acc_feature_ids;
 
@@ -527,33 +528,35 @@ namespace geoflow::nodes::basic3d
     }
 
     // EXT_structural_metadata
-    // TODO: for each feature attribute, instead of hardcoded
     // Schema definition
-    tinygltf::Value::Object prop_objectid;
-    // because tinygltf::Value("somestring") thinks that "somestring" is a bool
-    prop_objectid["description"] = tinygltf::Value((std::string)"objectid property description");
-    prop_objectid["type"] = tinygltf::Value((std::string)"SCALAR");
-    prop_objectid["componentType"] = tinygltf::Value((std::string)"INT32");
-    prop_objectid["required"] = tinygltf::Value(true);
-    tinygltf::Value::Object prop_bagpandid;
-    prop_bagpandid["description"] = tinygltf::Value((std::string)"bagpandid property description");
-    prop_bagpandid["type"] = tinygltf::Value((std::string)"STRING");
-    tinygltf::Value::Object prop_bouwjaar;
-    prop_bouwjaar["description"] = tinygltf::Value((std::string)"bouwjaar property description");
-    prop_bouwjaar["type"] = tinygltf::Value((std::string)"SCALAR");
-    prop_bouwjaar["componentType"] = tinygltf::Value((std::string)"INT32");
-    tinygltf::Value::Object building_class_properties;
-    building_class_properties["objectid"] = tinygltf::Value(prop_objectid);
-    building_class_properties["bagpandid"] = tinygltf::Value(prop_bagpandid);
-    building_class_properties["bouwjaar"] = tinygltf::Value(prop_bouwjaar);
-    tinygltf::Value::Object building_class;
-    building_class["name"] = tinygltf::Value((std::string)"Building");
-    building_class["description"] = tinygltf::Value((std::string)"Building class description");
-    building_class["properties"] = tinygltf::Value(building_class_properties);
-    tinygltf::Value::Object classes;
-    classes["building"] = tinygltf::Value(building_class);
-    tinygltf::Value::Object schema;
-    schema["classes"] = tinygltf::Value(classes);
+    tinygltf::Value::Object metadata_class_properties;
+    for (const auto& [name, value_vec] : feature_attribute_map) {
+      tinygltf::Value::Object metadata_property;
+      metadata_property["description"] = tinygltf::Value((std::string)"property description");
+      if (value_vec[0].type() == typeid(bool)) {
+        metadata_property["type"] = tinygltf::Value((std::string)"BOOLEAN");
+      } else if (value_vec[0].type() == typeid(int)) {
+        metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
+        metadata_property["componentType"] = tinygltf::Value((std::string)"INT32");
+      } else if (value_vec[0].type() == typeid(float)) {
+        metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
+        metadata_property["componentType"] = tinygltf::Value((std::string)"FLOAT32");
+      } else if (value_vec[0].type() == typeid(char)) {
+        metadata_property["type"] = tinygltf::Value((std::string)"STRING");
+      } else {
+        std::cout << "unhandled feature attribute type" << std::endl;
+      }
+      metadata_class_properties[name] = tinygltf::Value(metadata_property);
+    }
+    std::string metadata_class_name = metadata_class_name_;
+    tinygltf::Value::Object metadata_class;
+    metadata_class["name"] = tinygltf::Value(metadata_class_name_);
+    metadata_class["description"] = tinygltf::Value((std::string)"class description");
+    metadata_class["properties"] = tinygltf::Value(metadata_class_properties);
+    tinygltf::Value::Object metadata_classes;
+    metadata_classes[metadata_class_name_] = tinygltf::Value(metadata_class);
+    tinygltf::Value::Object metadata_schema;
+    metadata_schema["classes"] = tinygltf::Value(metadata_classes);
 
     // Add the property tables for the feature attributes. The property tables
     // reference bufferviews, which reference the complete array of the values
@@ -561,82 +564,88 @@ namespace geoflow::nodes::basic3d
     // https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_structural_metadata#ext_structural_metadata
     // We need a bufferView for each feature attribute, plus the string offsets
     // in case of string attributes.
-    tinygltf::BufferView bf_attr_objectid;
-    tinygltf::BufferView bf_attr_bagpandid_offsets;
-    tinygltf::BufferView bf_attr_bagpandid;
-    tinygltf::BufferView bf_attr_bouwjaar;
-//     Everything goes into the same buffer
-    auto byteOffset_attr_objectid =
-      byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
-    bf_attr_objectid.buffer     = buffer_idx;
-    bf_attr_objectid.byteOffset = byteOffset_attr_objectid;
-    bf_attr_objectid.byteLength = attr_objectid_vec.size() * sizeof(int);
-    bf_attr_objectid.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_objectid    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_objectid);
+    std::map<std::string, std::tuple<unsigned long, unsigned long>> id_bf_attr_map{};
+    auto byteOffset_feature_attributes =
+        byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
+    unsigned long total_attr_vec_size(0);
+    for (auto& [name, value_vec] : feature_attribute_map) {
+      value_vec.shrink_to_fit();
+      // bufferView ID for the attribute
+      unsigned long id_bf_attr;
+      // bufferView ID for the attribute offsets https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
+      unsigned long id_bf_attr_offset(0); // this is always >0 if used
+      {
+        tinygltf::BufferView bf_attr;
+        unsigned long type_size(0);
+        if (value_vec[0].type() == typeid(bool)) {
+          type_size = sizeof(bool);
+        } else if (value_vec[0].type() == typeid(int)) {
+          type_size = sizeof(int);
+        } else if (value_vec[0].type() == typeid(float)) {
+          type_size = sizeof(float);
+        } else if (value_vec[0].type() == typeid(char)) {
+          type_size = sizeof(char);
+        }
+        auto byteLength = value_vec.size() * type_size;
+        total_attr_vec_size += byteLength;
+        // Everything goes into the same buffer
+        bf_attr.buffer     = buffer_idx;
+        bf_attr.byteOffset = byteOffset_feature_attributes;
+        bf_attr.byteLength = byteLength;
+        bf_attr.byteStride = 0; // all feature attribute value arrays need to be tightly packed https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#binary-table-format
+        bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+        id_bf_attr = model.bufferViews.size();
+        model.bufferViews.push_back(bf_attr);
+        byteOffset_feature_attributes += byteLength;
+      }
+      if (value_vec[0].type() == typeid(char)) {
+        tinygltf::BufferView bf_attr;
+        auto& value_vec_offs = feature_attribute_string_offsets[name];
+        value_vec_offs.offsets.shrink_to_fit();
+        auto byteLength = value_vec_offs.offsets.size() * sizeof(unsigned);
+        total_attr_vec_size += byteLength;
+        // Everything goes into the same buffer
+        bf_attr.buffer     = buffer_idx;
+        bf_attr.byteOffset = byteOffset_feature_attributes;
+        bf_attr.byteLength = byteLength;
+        bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+        id_bf_attr_offset = model.bufferViews.size();
+        model.bufferViews.push_back(bf_attr);
+        byteOffset_feature_attributes += byteLength;
+      }
+      id_bf_attr_map[name] = {id_bf_attr, id_bf_attr_offset};
+    }
 
-    auto byteOffset_attr_bagpandid_offsets = byteOffset_attr_objectid + attr_objectid_vec.size() * sizeof(int);
-    bf_attr_bagpandid_offsets.buffer     = buffer_idx;
-    bf_attr_bagpandid_offsets.byteOffset = byteOffset_attr_bagpandid_offsets;
-    bf_attr_bagpandid_offsets.byteLength =
-      attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
-    bf_attr_bagpandid_offsets.target  = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_bagpandid_offsets = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_bagpandid_offsets);
-
-    auto byteOffset_attr_bagpandid =
-      byteOffset_attr_bagpandid_offsets +
-      attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
-    bf_attr_bagpandid.buffer     = buffer_idx;
-    bf_attr_bagpandid.byteOffset = byteOffset_attr_bagpandid;
-    bf_attr_bagpandid.byteLength = attr_bagpandid_vec.size() * sizeof(char);
-    bf_attr_bagpandid.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_bagpandid    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_bagpandid);
-
-    auto byteOffset_attr_bouwjaar =
-      byteOffset_attr_bagpandid + attr_bagpandid_vec.size() * sizeof(char);
-    bf_attr_bouwjaar.buffer     = buffer_idx;
-    bf_attr_bouwjaar.byteOffset = byteOffset_attr_bouwjaar;
-    bf_attr_bouwjaar.byteLength = attr_bouwjaar_vec.size() * sizeof(int);
-    bf_attr_bouwjaar.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-    auto id_bf_attr_bouwjaar    = model.bufferViews.size();
-    model.bufferViews.push_back(bf_attr_bouwjaar);
-
-    tinygltf::Value::Object prop_tbl_attr_objectid;
-    prop_tbl_attr_objectid["values"] = tinygltf::Value((int)id_bf_attr_objectid);
-    tinygltf::Value::Object prop_tbl_attr_bagpandid;
-    prop_tbl_attr_bagpandid["values"] = tinygltf::Value((int)id_bf_attr_bagpandid);
-    prop_tbl_attr_bagpandid["stringOffsets"] = tinygltf::Value((int)id_bf_attr_bagpandid_offsets);
-    prop_tbl_attr_bagpandid["stringOffsetType"] = tinygltf::Value((std::string)"UINT32");
-    tinygltf::Value::Object prop_tbl_attr_bouwjaar;
-    prop_tbl_attr_bouwjaar["values"] = tinygltf::Value((int)id_bf_attr_bouwjaar);
-    tinygltf::Value::Object properties_building;
-    properties_building["objectid"] = tinygltf::Value(prop_tbl_attr_objectid);
-    properties_building["bagpandid"] = tinygltf::Value(prop_tbl_attr_bagpandid);
-    properties_building["bouwjaar"] = tinygltf::Value(prop_tbl_attr_bouwjaar);
-    tinygltf::Value::Object property_table_building;
-    property_table_building["class"] = tinygltf::Value((std::string)"building");
-    property_table_building["count"] = tinygltf::Value((int)attr_objectid_vec.size());
-    property_table_building["name"] = tinygltf::Value((std::string)"building propertyTable name");
-    property_table_building["properties"] = tinygltf::Value(properties_building);
+    tinygltf::Value::Object properties_property_tbl;
+    for (const auto& [name, buffer_ids] : id_bf_attr_map) {
+      tinygltf::Value::Object property_tbl_attr;
+      auto                    buffer_id         = std::get<0>(buffer_ids);
+      auto                    buffer_id_offsets = std::get<1>(buffer_ids);
+      if (buffer_id_offsets == 0) {
+        property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
+      } else {
+        property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
+        property_tbl_attr["stringOffsets"] =
+          tinygltf::Value((int)buffer_id_offsets);
+        property_tbl_attr["stringOffsetType"] =
+          tinygltf::Value((std::string) "UINT32");
+      }
+      properties_property_tbl[name] = tinygltf::Value(property_tbl_attr);
+    }
+    tinygltf::Value::Object property_table;
+    property_table["class"] = tinygltf::Value((std::string)metadata_class_name_);
+    property_table["count"] = tinygltf::Value((int)info_vec.size()); // feature count
+    property_table["name"] = tinygltf::Value((std::string)"propertyTable name");
+    property_table["properties"] = tinygltf::Value(properties_property_tbl);
 
     tinygltf::Value::Object ext_structural_metadata_object;
-    ext_structural_metadata_object["schema"] = tinygltf::Value(schema);
+    ext_structural_metadata_object["schema"] = tinygltf::Value(metadata_schema);
     tinygltf::Value::Array property_tables;
-    property_tables.emplace_back(property_table_building);
+    property_tables.emplace_back(property_table);
     ext_structural_metadata_object["propertyTables"] = tinygltf::Value(property_tables);
     tinygltf::ExtensionMap root_extensions;
     root_extensions["EXT_structural_metadata"] = tinygltf::Value(ext_structural_metadata_object);
 
-    // TODO: we won't actually know upfront how many attribute vectors we have and
-    //  what is their type
-    unsigned long total_attr_vec_size =
-      (attr_objectid_vec.size() * sizeof(int) +
-       attr_bagpandid_string_offset_vec.size() * sizeof(unsigned) +
-       attr_bagpandid_vec.size() * sizeof(char) +
-       attr_bouwjaar_vec.size() * sizeof(int));
-    // TODO: For each attribute vector, we have to copy the contents to the buffer
     // Copy contents to the buffer
     buffer.data.resize(index_vec.size() * sizeof(unsigned) +
                        vertex_vec.size() * 6 * sizeof(float) +
@@ -655,46 +664,60 @@ namespace geoflow::nodes::basic3d
            (unsigned char*)feature_id_vec.data(),
            feature_id_vec.size() * sizeof(float));
     ptr_end_of_data += feature_id_vec.size() * sizeof(float);
-    memcpy(ptr_end_of_data,
-           (unsigned char*)attr_objectid_vec.data(),
-           attr_objectid_vec.size() * sizeof(int));
-    ptr_end_of_data += attr_objectid_vec.size() * sizeof(int);
-    memcpy(ptr_end_of_data,
-           (unsigned char*)attr_bagpandid_string_offset_vec.data(),
-           attr_bagpandid_string_offset_vec.size() * sizeof(unsigned));
-    ptr_end_of_data += attr_bagpandid_string_offset_vec.size() * sizeof(unsigned);
-    memcpy(ptr_end_of_data,
-           (unsigned char*)attr_bagpandid_vec.data(),
-           attr_bagpandid_vec.size() * sizeof(char));
-    ptr_end_of_data += attr_bagpandid_vec.size() * sizeof(char);
-    memcpy(ptr_end_of_data,
-           (unsigned char*)attr_bouwjaar_vec.data(),
-           attr_bouwjaar_vec.size() * sizeof(int));
-
-    // std::cout << std::endl;
-    // for(unsigned i=0; i<index_vec.size(); ++i) {
-    //   std::cout << i << " : "<< index_vec[i] << std::endl;
-    // }
-    // for(unsigned i=0; i<vertex_vec.size(); ++i) {
-    //   std::cout << i << " : "<< vertex_vec[i][1] << ", " << vertex_vec[i][1] << ", " << vertex_vec[i][2] << " | ";
-    //   std::cout << vertex_vec[i][3] << ", " << vertex_vec[i][4] << ", " << vertex_vec[i][5] << std::endl;
-    // }
-    // std::cout << "buffer size=" << buffer.data.size() << std::endl;
-    // for (size_t i=0; i<index_vec.size()*sizeof(unsigned); i+=4) {
-    //   std::cout << i/4 << " : \n";
-    //   // if (i<36*4) {
-    //     unsigned u;
-    //     memcpy(&u, &buffer.data[i], sizeof(u));
-    //     std::cout << "u = " << u << std::endl;
-    //   // } else {
-    //     // for (size_t j=i; j<i+12; j+=4){
-    //       // float f;
-    //       // memcpy(&f, &buffer.data[i], sizeof(f));
-    //       // std::cout << "f = " << f << std::endl;
-    //     // }
-    //     // std::cout << std::endl;
-    //   // }
-    // }
+    for (const auto& [name, value_vec] : feature_attribute_map) {
+      unsigned long type_size(0);
+      if (value_vec[0].type() == typeid(bool)) {
+        type_size = sizeof(bool);
+      } else if (value_vec[0].type() == typeid(int)) {
+        type_size = sizeof(int);
+        std::vector<int> value_vec_int;
+        value_vec_int.reserve(value_vec.size());
+        for (auto& i : value_vec) {
+          value_vec_int.emplace_back(std::any_cast<int>(i));
+        }
+        value_vec_int.shrink_to_fit();
+        auto value_vec_int_size = value_vec_int.size() * type_size;
+        memcpy(ptr_end_of_data,
+               (unsigned char*)value_vec_int.data(),
+               value_vec_int_size);
+        ptr_end_of_data += value_vec_int_size;
+      } else if (value_vec[0].type() == typeid(float)) {
+        type_size = sizeof(float);
+        std::vector<float> value_vec_float;
+        value_vec_float.reserve(value_vec.size());
+        for (auto& i : value_vec) {
+          value_vec_float.emplace_back(std::any_cast<float>(i));
+        }
+        value_vec_float.shrink_to_fit();
+        auto value_vec_float_size = value_vec_float.size() * type_size;
+        memcpy(ptr_end_of_data,
+               (unsigned char*)value_vec_float.data(),
+               value_vec_float_size);
+        ptr_end_of_data += value_vec_float_size;
+      } else if (value_vec[0].type() == typeid(char)) {
+        // Copy the attribute values
+        type_size = sizeof(char);
+        std::vector<char> value_vec_char;
+        value_vec_char.reserve(value_vec.size());
+        for (auto& i : value_vec) {
+          value_vec_char.emplace_back(std::any_cast<char>(i));
+        }
+        value_vec_char.shrink_to_fit();
+        auto value_vec_char_size = value_vec_char.size() * type_size;
+        memcpy(ptr_end_of_data,
+               (unsigned char*)value_vec_char.data(),
+               value_vec_char_size);
+        ptr_end_of_data += value_vec_char_size;
+        // Copy the string offsets
+        type_size = sizeof(unsigned);
+        auto stringoffset = feature_attribute_string_offsets[name];
+        auto offset_vec_size = stringoffset.offsets.size() * type_size;
+        memcpy(ptr_end_of_data,
+               (unsigned char*)stringoffset.offsets.data(),
+               offset_vec_size);
+        ptr_end_of_data += offset_vec_size;
+      }
+    }
 
     model.meshes.push_back(mesh);
     node.mesh = 0;
