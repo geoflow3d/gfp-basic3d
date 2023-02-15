@@ -66,9 +66,10 @@ namespace geoflow::nodes::basic3d
     model.materials.push_back(GenericCityObject);
   };
 
-  tinygltf::Value create_ext_mesh_features(int featureCount,
-                                                  int attribute,
-                                                  int propertyTable)
+  tinygltf::Value create_ext_mesh_features(int                featureCount,
+                                           int                attribute,
+                                           int                propertyTable,
+                                           const std::string& label)
   { // EXT_mesh_features
     // We only have one feature ID set. This feature ID set releates the
     // feature ID vertex attribute to the feature attribute, thus each for a
@@ -86,9 +87,12 @@ namespace geoflow::nodes::basic3d
     // accessor that refers to the actual feature ID-s in the buffer, for the
     // current feature. The _FEATURE_ID_n semantic has the same value for 'n'
     // as the "attribute", thus the index of the accessor.
-    featureId_set[ "attribute"] = tinygltf::Value(attribute);
+    featureId_set["attribute"] = tinygltf::Value(attribute);
     // This feature ID set is associated with the propertyTable at the index.
-    featureId_set[ "propertyTable"] = tinygltf::Value(propertyTable);
+    featureId_set["propertyTable"] = tinygltf::Value(propertyTable);
+    if (!label.empty()) {
+      featureId_set["label"] = tinygltf::Value(label);
+    }
     tinygltf::Value::Array featureId_sets;
     featureId_sets.emplace_back(featureId_set);
     tinygltf::Value::Object ext_mesh_features_object;
@@ -131,6 +135,7 @@ namespace geoflow::nodes::basic3d
       unsigned index_offset;
       unsigned index_count;
       unsigned feature_id_count;
+      float    feature_id;
       std::vector<double> index_min;
       std::vector<double> index_max;
       std::vector<double> normals_min;
@@ -160,6 +165,7 @@ namespace geoflow::nodes::basic3d
     create_materials(model);
 
     int feature_id_set_idx = 0;
+    // WARNING: Cesium (v1.102) only reads the first buffer from gltf.buffers.
     int buffer_idx = 0;
 
     std::vector<arr6f> vertex_vec; // position + normal
@@ -196,18 +202,21 @@ namespace geoflow::nodes::basic3d
     // to identify in one gltf file.
     float feature_id = 0.0;
     float feature_id_seq = 0.0;
-    // FIXME: using the 'objectid' values as _FEATURE_ID, together with feature
-    //  attribute values, silently breaks cesium. The features are rendered and
+    // WARNING: Using anything else than a 0-based, sequential ID as
+    //  _FEATURE_ID, together with feature silently breaks cesium.
+    //  The features are rendered and
     //  they show up, but there is something wrong with them, because they are
     //  not recognized as 3dtilefeatures when trying to pick them on the screen.
     //  Such that Cesium.viewer.scene.pick(movement.endPosition); returns an
-    //  'undefined' when picking a 3d tile feature. So for now we only do
-    //  sequential featureids.
-    // We want to use the 'objectid' as _FEATURE_ID, because
-    //  otherwise it'll be difficult to get the metadata from an API for the
-    //  selected feature.
+    //  'undefined' when picking a 3d tile feature. So for when Cesium is used
+    //  for rendering the 3D Tiles, only do sequential featureids.
+    //  This is because Cesium (still, in v1.102) only implement the 3D Tiles
+    //  v1.0 specs when it comes to feture IDs: https://github.com/CesiumGS/3d-tiles/blob/main/specification/TileFormats/Batched3DModel/README.md#batch-table
+    //  batchID (v1.0) == featureID (v1.1)
+    // Ideally, we want to use the 'objectid' as _FEATURE_ID, because
+    //  otherwise it'll be cumbersome to get the metadata from an API for the
+    //  selected feature I think.
     //  https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_mesh_features#referencing-external-resources-with-feature-ids
-    feature_id_attribute_ = "";
     // Check if 'feature_id' is provided, and the attribute value of the first
     // feature can be cast to a float. If not true, then use sequential ID.
     // It is ok to only check the first feature, because each subequent feature
@@ -342,6 +351,7 @@ namespace geoflow::nodes::basic3d
         inf.index_min.push_back(0);
         inf.index_max.push_back(v_cntr-1);
         inf.feature_id_count = fid_cntr;
+        inf.feature_id = feature_id;
 
         Box normals_box;
         normals_box.add(normals);
@@ -497,6 +507,8 @@ namespace geoflow::nodes::basic3d
       acc_feature_ids.normalized       = false;
       acc_feature_ids.componentType    = TINYGLTF_COMPONENT_TYPE_FLOAT;
       acc_feature_ids.count            = inf.feature_id_count;
+      acc_feature_ids.maxValues        = {inf.feature_id};
+      acc_feature_ids.minValues        = {inf.feature_id};
       // This is an int, because tinygltf::Value only knows 'int' (no unsigned etc).
       int id_acc_feature_ids = model.accessors.size();
       model.accessors.push_back(acc_feature_ids);
@@ -505,7 +517,8 @@ namespace geoflow::nodes::basic3d
       primitive.attributes[fid] = id_acc_feature_ids;
 
       tinygltf::ExtensionMap primitive_extensions;
-      primitive_extensions["EXT_mesh_features"] = create_ext_mesh_features(1, feature_id_set_idx, 0);
+      primitive_extensions["EXT_mesh_features"] = create_ext_mesh_features(
+        1, feature_id_set_idx, 0, feature_id_attribute_);
 
       primitive.material   = get_material_id(ftype);
       primitive.mode       = TINYGLTF_MODE_TRIANGLES;
