@@ -178,22 +178,8 @@ namespace geoflow::nodes::basic3d
     // model.materials.push_back(mat);
     create_materials(model);
 
-    int feature_id_set_idx = 0;
-    // WARNING: Cesium (v1.102) only reads the first buffer from gltf.buffers.
-    int buffer_idx = 0;
+    // BEGIN METADATA
 
-    std::vector<arr6f> vertex_vec; // position + normal
-    std::vector<float> feature_id_vec; // feature id vertex attribute
-    std::vector<unsigned> index_vec;
-    std::vector<TCInfo>   info_vec;
-    unsigned                    v_offset = 0;
-    unsigned                    i_offset = 0;
-    // It's a float, because glTF accessors do not support UNSIGNED_INT types
-    // for 32-bit integers in vertex attributes. There is UNSIGNED_SHORT, but
-    // probably there could be more than ~65k individual features that we need
-    // to identify in one gltf file.
-    float feature_id = 0.0;
-    float feature_id_seq = 0.0;
     // WARNING: Using anything else than a 0-based, sequential ID as
     //  _FEATURE_ID, together with feature silently breaks cesium.
     //  The features are rendered and
@@ -257,6 +243,10 @@ namespace geoflow::nodes::basic3d
       break;
     }
 
+    // END METADATA
+
+    // BEGIN CRS handling and finding centerpoint
+
     manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
 
     // determine approximate centerpoint
@@ -272,6 +262,26 @@ namespace geoflow::nodes::basic3d
     }
     arr3f c = global_bbox.center();
     // }
+
+    // BEGIN INIT INTERMEDIATE VECTORS
+
+    int feature_id_set_idx = 0;
+    // WARNING: Cesium (v1.102) only reads the first buffer from gltf.buffers.
+    int buffer_idx = 0;
+
+    std::vector<arr6f> vertex_vec; // position + normal
+    std::vector<float> feature_id_vec; // feature id vertex attribute
+    std::vector<unsigned> index_vec;
+    std::vector<TCInfo>   info_vec;
+    unsigned v_offset = 0;
+    unsigned i_offset = 0;
+
+    // It's a float, because glTF accessors do not support UNSIGNED_INT types
+    // for 32-bit integers in vertex attributes. There is UNSIGNED_SHORT, but
+    // probably there could be more than ~65k individual features that we need
+    // to identify in one gltf file.
+    float feature_id = 0.0;
+    float feature_id_seq = 0.0;
 
     for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
       if (!triangle_collections_inp.get_data_vec()[i].has_value())
@@ -422,6 +432,8 @@ namespace geoflow::nodes::basic3d
       info_vec.push_back(inf);
     }
     manager.clear_rev_crs_transform();
+
+    // END INIT INTERMEDIATE VECTORS
 
     if (info_vec.size() == 0) {
       std::cout<<"no vertices to write, aborting...\n";
@@ -723,12 +735,18 @@ namespace geoflow::nodes::basic3d
     node.mesh = 0;
     // Apply z-up to y-up transformation since our data is z-up, but gltf requires y-up (per 3D tiles specs recommendation)
     // see https://github.com/CesiumGS/3d-tiles/tree/main/specification#y-up-to-z-up
+    // matrices are in column major order
     if(relative_to_center) {
+      // also include a translation by multiplication with translation matrix. ie
+      //  | 1  0  0  0 |   | 1 0 0 c0 |
+      //  | 0  0  1  0 |   | 0 1 0 c1 |
+      //  | 0 -1  0  0 | . | 0 0 1 c2 |
+      //  | 0  0  0  1 |   | 0 0 0 1  |
       node.matrix = {
         1,  0,  0,  0,
         0,  0, -1,  0,
         0,  1,  0,  0,
-        c[0],  c[1],  c[2],  1
+        c[0],  c[2], -c[1],  1
       };
     } else {
       node.matrix = {
