@@ -902,8 +902,6 @@ namespace geoflow::nodes::basic3d
             std::cout<< "skipping..." <<std::endl;
             continue;
           }
-          
-          vector_output("feature_type").push_back(ftype);
 
           std::string selected_lod;
           if(lod_filter.count(ftype)) {
@@ -926,67 +924,7 @@ namespace geoflow::nodes::basic3d
           // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
           // get_attributes
-          for(auto& [jname, jval] : cobject["attributes"].items()) {
-            // std::cout << jname <<std::endl;
-            if(!attribute_filter_map.count(jname)) continue;
-
-            if (attributes.sub_terminal(jname).accepts_type(typeid(float))) {
-              if (jval.is_number_float())
-                attributes.sub_terminal(jname).push_back(jval.get<float>());
-              else {
-                std::size_t pos{};
-                try {
-                  const float jval_float{ std::stof(jval.get<std::string>(),
-                                                    &pos) };
-                  attributes.sub_terminal(jname).push_back(jval_float);
-                } catch (std::invalid_argument const& ex) {
-                  std::cout << "could not convert attribute " << jname
-                            << " from " << jval.type_name() << " to float"
-                            << std::endl;
-                } catch (std::out_of_range const& ex) {
-                  std::cout << "attribute value (" << jval.get<std::string>()
-                            << ") of " << jname
-                            << " is out of range for a float" << std::endl;
-                }
-              }
-            } else if (attributes.sub_terminal(jname).accepts_type(
-                         typeid(int))) {
-              if (jval.is_number_integer())
-                attributes.sub_terminal(jname).push_back(jval.get<int>());
-              else {
-                std::size_t pos{};
-                try {
-                  const int jval_int{ std::stoi(jval.get<std::string>(),
-                                                &pos) };
-                  attributes.sub_terminal(jname).push_back(jval_int);
-                } catch (std::invalid_argument const& ex) {
-                  std::cout << "could not convert attribute " << jname
-                            << " from " << jval.type_name() << " to int"
-                            << std::endl;
-                } catch (std::out_of_range const& ex) {
-                  std::cout << "attribute value (" << jval.get<std::string>()
-                            << ") of " << jname << " is out of range for an int"
-                            << std::endl;
-                }
-              }
-            } else if (attributes.sub_terminal(jname).accepts_type(
-                         typeid(bool))) {
-              if (jval.is_boolean())
-                attributes.sub_terminal(jname).push_back(jval.get<bool>());
-              else {
-                bool b;
-                std::istringstream(jval.get<std::string>()) >> std::boolalpha >>
-                  b;
-                attributes.sub_terminal(jname).push_back(b);
-              }
-            } else if (attributes.sub_terminal(jname).accepts_type(
-                         typeid(std::string))) {
-              attributes.sub_terminal(jname).push_back(jval.get<std::string>());
-            } else {
-              attributes.sub_terminal(jname).push_back_any(std::any());
-            }
-          }
-          
+          bool pushed_geometry = false; 
           for (const auto& geom : cobject["geometry"]) {
             // get geometry for highest lod
             std::cout << "found geom with lod "<< geom["lod"] << std::endl;
@@ -1009,6 +947,7 @@ namespace geoflow::nodes::basic3d
                 mesh.push_polygon(ring, 2);
               }
               meshes.push_back(mesh);
+              pushed_geometry = true;
             } else if (geom["type"] == "MultiSurface") {
               Mesh mesh;
               // get faces of exterior shell
@@ -1027,11 +966,67 @@ namespace geoflow::nodes::basic3d
                 mesh.push_polygon(ring, 2);
               }
               meshes.push_back(mesh);
+              pushed_geometry = true;
             } else {
               throw(gfIOError("Unsupported geometry type"));
             }
           }
-          
+          if (pushed_geometry) {
+            vector_output("feature_type").push_back(ftype);
+            for(auto& [name, attribute] : attributes.sub_terminals()) {
+              if(!cobject["attributes"].count(name)) {
+                attribute->push_back_any(std::any());
+                continue;
+              }
+              auto& jval = cobject["attributes"][name];
+              if (attribute->accepts_type( typeid(float)) ) {
+                if (jval.is_number_float())
+                  attribute->push_back(jval.get<float>());
+                else {
+                  try {
+                    const float jval_float{ std::stof(jval.get<std::string>()) };
+                    attribute->push_back(jval_float);
+                  } catch (std::invalid_argument const& ex) {
+                    std::cout << "could not convert attribute " << name
+                              << " from " << jval.type_name() << " to float"
+                              << std::endl;
+                  } catch (std::out_of_range const& ex) {
+                    std::cout << "attribute value (" << jval.get<std::string>()
+                              << ") of " << name
+                              << " is out of range for a float" << std::endl;
+                  }
+                }
+              } else if (attribute->accepts_type( typeid(int) )) {
+                if (jval.is_number_integer())
+                  attribute->push_back(jval.get<int>());
+                else {
+                  try {
+                    const int jval_int{ std::stoi(jval.get<std::string>()) };
+                    attribute->push_back(jval_int);
+                  } catch (std::invalid_argument const& ex) {
+                    std::cout << "could not convert attribute " << name
+                              << " from " << jval.type_name() << " to int"
+                              << std::endl;
+                  } catch (std::out_of_range const& ex) {
+                    std::cout << "attribute value (" << jval.get<std::string>()
+                              << ") of " << name << " is out of range for an int"
+                              << std::endl;
+                  }
+                }
+              } else if (attribute->accepts_type( typeid(bool) )) {
+                if (jval.is_boolean())
+                  attribute->push_back(jval.get<bool>());
+                else {
+                  bool b;
+                  std::istringstream(jval.get<std::string>()) >> std::boolalpha >>
+                    b;
+                  attribute->push_back(b);
+                }
+              } else if (attribute->accepts_type( typeid(std::string) )) {
+                attribute->push_back(jval.get<std::string>());
+              }
+            }
+          }
         }
       }
     }

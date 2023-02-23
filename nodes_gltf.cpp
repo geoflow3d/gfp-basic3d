@@ -154,8 +154,7 @@ namespace geoflow::nodes::basic3d
     auto& attributes_inp = poly_input("attributes");
 
     if (metadata_class_name_.empty()) {
-      std::cout << "metadata_class must be provided" << std::endl;
-      return ;
+      throw(gfException("metadata_class must be provided"));
     }
 
     tinygltf::Model model;
@@ -394,8 +393,9 @@ namespace geoflow::nodes::basic3d
       //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
       //  that's a lie.
       for (auto& term : attributes_inp.sub_terminals()) {
-        if (!term->get_data_vec()[i].has_value())
+        if (!term->get_data_vec()[i].has_value()) {
           continue;
+        }
         const auto& tname = term->get_name();
         if (term->accepts_type(typeid(bool))) {
           feature_attribute_map[tname].emplace_back(term->get<const bool&>(i));
