@@ -491,7 +491,7 @@ public:
     add_param(ParamBool(pretty_print_, "pretty_print", "pretty_print"));
     add_param(ParamBool(binary_, "binary", "binary"));
     add_param(ParamBool(relative_to_center, "relative_to_center", "relative_to_center"));
-    add_param(ParamString(feature_id_attribute_, "feature_id", "The feature attribute to use as the _FEATURE_ID vertex attribute value in the EXT_mesh_features extension. The attribute value must be cast-able to a float. If empty, it will be a sequential ID per feature."));
+    // add_param(ParamString(feature_id_attribute_, "feature_id", "The feature attribute to use as the _FEATURE_ID vertex attribute value in the EXT_mesh_features extension. The attribute value must be cast-able to a float. If empty, it will be a sequential ID per feature."));
     add_param(ParamString(metadata_class_name_, "metadata_class", "The name of the metadata class to create (for EXT_structural_metadata)"));
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
