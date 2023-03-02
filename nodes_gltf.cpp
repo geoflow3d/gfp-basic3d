@@ -21,6 +21,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "tiny_gltf.h"
 #include <nlohmann/json.hpp>
+#include <meshoptimizer.h>
 
 namespace geoflow::nodes::basic3d
 {
@@ -33,7 +34,7 @@ namespace geoflow::nodes::basic3d
     //   std::vector<arr3f> normals;
     //   std::vector<float> feature_ids;
     // };
-    std::unordered_map<std::string, arr7f> data;
+    std::unordered_map<std::string, std::vector<arr7f>> data;
     // std::unordered_map<std::string, FeatureAttributeData> data;
     std::unordered_map<std::string, unsigned> ftype_counts;
 
@@ -59,58 +60,38 @@ namespace geoflow::nodes::basic3d
     ) {
       
       // count the nr of vertices and indices stored for this tc
-      std::set<arr6f> vertex_set;
-      std::map<arr6f, unsigned> vertex_map;
-      size_t index_offset = 0, i = 0, v_cntr = 0;
-      if(data.count(feature_type)) index_offset = data[feature_type].indices.size();
+      // std::set<arr6f> vertex_set;
+      // std::map<arr6f, unsigned> vertex_map;
+      size_t i = 0, v_cntr = 0;
       for (auto &triangle : tc)
       {
-        for (auto &p : triangle)
+        for (auto &p_ : triangle)
         {
-          auto p_ = manager.coord_transform_rev(p);
+          const auto& n_ = normals[i++];
+          auto p = manager.coord_transform_rev(p_);
           // NB: narrowing double to float here, not ideal
-          arr6f vertex;
+          // reproject n_
+          arr3f pn_{p_[0]+n_[0], p_[1]+n_[1], p_[2]+n_[2]};
+          auto pn = manager.coord_transform_rev(pn_);
+          arr3f n{float(pn[0]-p[0]), float(pn[1]-p[1]), float(pn[2]-p[2])};
+          auto l = std::sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
+          
           if(relative_to_center) {
-            p_[0] -= float(center_point[0]); 
-            p_[1] -= float(center_point[1]);
-            p_[2] -= float(center_point[2]);
+            p[0] -= float(center_point[0]); 
+            p[1] -= float(center_point[1]);
+            p[2] -= float(center_point[2]);
           }
-          vertex = arr6f{
-            float(p_[0]), 
-            float(p_[1]), 
-            float(p_[2]), 
-            normals[i][0], normals[i][1], normals[i++][2]
-          };
-          auto [it, did_insert] = vertex_set.insert(vertex);
-          if (did_insert)
-          {
-            vertex_map[vertex] = v_cntr++;
-            
-            // reproject normal
-            arr3f pn_{p[0]+vertex[3], p[1]+vertex[4], p[2]+vertex[5]};
-            auto pn = manager.coord_transform_rev(pn_);
-            arr3f n{float(pn[0]-p_[0]), float(pn[1]-p_[1]), float(pn[2]-p_[2])};
-            auto l = std::sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
-            n[0] = n[0]/l;
-            n[1] = n[1]/l;
-            n[2] = n[2]/l;
 
-            // write to vectors
-            // data[feature_type].positions.push_back(arr3f{p[0], p[1], p[2]});
-            // data[feature_type].normals.push_back(n);
-            // data[feature_type].feature_ids.push_back(feature_id_cnt);
-
-            data[feature_type].push_back(p[0]);
-            data[feature_type].push_back(p[1]);
-            data[feature_type].push_back(p[2]);
-            data[feature_type].push_back(n[0]);
-            data[feature_type].push_back(n[1]);
-            data[feature_type].push_back(n[2]);
-            data[feature_type].push_back(feature_id_cnt);
-            ++total_count;
-            // positions_box.add(arr3f{vertex[0], vertex[1], vertex[2]});
-          }
-          data[feature_type].indices.push_back(index_offset + vertex_map[vertex]);
+          data[feature_type].push_back({
+            float(p[0]), 
+            float(p[1]), 
+            float(p[2]), 
+            n[0]/l, 
+            n[1]/l, 
+            n[2]/l,
+            feature_id_cnt
+          });
+          ++total_count;
         }
       }
       feature_id_cnt += 1.0;
@@ -133,6 +114,22 @@ namespace geoflow::nodes::basic3d
     accessor.maxValues.push_back(p[0]);
     accessor.maxValues.push_back(p[1]);
     accessor.maxValues.push_back(p[2]);
+  }
+
+  std::pair<arr7f,arr7f> get_min_max(std::vector<arr7f> values) {
+    auto fmin = std::numeric_limits<float>::lowest();
+    auto fmax = std::numeric_limits<float>::max();
+
+    arr7f min {fmax, fmax, fmax, fmax, fmax, fmax, fmax};
+    arr7f max {fmin, fmin, fmin, fmin, fmin, fmin, fmin};
+
+    for (auto& v : values) {
+      for(int i=0; i<7; ++i) {
+        min[i] = std::min(min[i], v[i]);
+        max[i] = std::max(max[i], v[i]);
+      }
+    }
+    return {min, max};
   }
 
   struct GLTFBuilder {
@@ -264,30 +261,39 @@ namespace geoflow::nodes::basic3d
       size_t feature_id_set_idx = 0;
       for (auto& [ftype, data] : IDH.data) {
         tinygltf::Primitive  primitive;
-        tinygltf::BufferView bf_positions;
-        tinygltf::BufferView bf_normals;
         tinygltf::BufferView bf_indices;
-        tinygltf::BufferView bf_feature_ids;
+        tinygltf::BufferView bf_attributes;
         tinygltf::Accessor   acc_positions;
         tinygltf::Accessor   acc_normals;
         tinygltf::Accessor   acc_indices;
         tinygltf::Accessor   acc_feature_ids;
-        
-        // indices
-        auto [min, max] = std::minmax_element(begin(data.indices), end(data.indices));
-        size_t element_byteSize = sizeof(unsigned);
-        size_t element_count = data.indices.size();
+
+        // create indices and remap vertices
+        size_t index_count = data.size();
+        std::vector<unsigned int> remap(index_count); // allocate temporary memory for the remap table
+        size_t vertex_count = meshopt_generateVertexRemap(&remap[0], NULL, index_count, &data[0], index_count, sizeof(arr7f));
+
+        std::vector<unsigned> indices(index_count);
+        std::vector<arr7f> vertices(vertex_count);
+        meshopt_remapIndexBuffer(&indices[0], NULL, index_count, &remap[0]);
+        meshopt_remapVertexBuffer(&vertices[0], &data[0], index_count, sizeof(arr7f), &remap[0]);
+
+
+        // indices copy data
         size_t byteLength = 0;
+        auto [min, max] = std::minmax_element(begin(indices), end(indices));
         // if (! (*max <= std::numeric_limits<unsigned short>::max())) {
         //   element_byteSize = sizeof(unsigned short);
         // }
+        size_t element_byteSize = sizeof(unsigned);
         if (element_byteSize == sizeof(unsigned short)) {
-          std::vector<unsigned short> part( data.indices.begin(), data.indices.end() );
-          byteLength = copy_to_buffer((unsigned char*)part.data(), element_byteSize, element_count, byteOffset);
+          std::vector<unsigned short> part( indices.begin(), indices.end() );
+          byteLength = copy_to_buffer((unsigned char*)part.data(), element_byteSize, index_count, byteOffset);
         } else { //if (max <= numeric_limits<unsigned int>::max()) {
-          byteLength = copy_to_buffer((unsigned char*)data.indices.data(), element_byteSize, element_count, byteOffset);
+          byteLength = copy_to_buffer((unsigned char*)indices.data(), element_byteSize, index_count, byteOffset);
         }
 
+        // indices setup bufferview
         bf_indices.buffer     = buffer_idx;
         bf_indices.byteOffset = byteOffset;
         bf_indices.byteLength = byteLength;
@@ -296,83 +302,66 @@ namespace geoflow::nodes::basic3d
         model.bufferViews.push_back(bf_indices);
         byteOffset += byteLength;
         
+        // indices setup accessor
         acc_indices.bufferView    = id_bf_indices;
         // acc_indices.byteOffset    = 0;
         acc_indices.type          = TINYGLTF_TYPE_SCALAR;
         acc_indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
-        acc_indices.count         = element_count;
+        acc_indices.count         = index_count;
         acc_indices.minValues     = { double(*min) };
         acc_indices.maxValues     = { double(*max) };
         primitive.indices = model.accessors.size();
         model.accessors.push_back(acc_indices);
         
-        // positions
-        element_byteSize = 3 * sizeof(float);
-        element_count = data.positions.size();
-        byteLength = copy_to_buffer((unsigned char*)data.positions.data(), element_byteSize, element_count, byteOffset);
+        // attributes copy data
+        size_t sizeof_position = 3*sizeof(float);
+        size_t sizeof_normal = 3*sizeof(float);
+        size_t sizeof_fid = sizeof(float);
+        element_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
+        byteLength = copy_to_buffer((unsigned char*)vertices.data(), element_byteSize, vertex_count, byteOffset);
 
-        bf_positions.buffer     = buffer_idx;
-        bf_positions.byteOffset = byteOffset;
-        bf_positions.byteLength = byteLength;
-        bf_positions.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-        auto id_bf_positions    = model.bufferViews.size();
-        model.bufferViews.push_back(bf_positions);
+        auto [amin, amax] = get_min_max(vertices);
+
+        // attributes setup bufferview
+        bf_attributes.buffer     = buffer_idx;
+        bf_attributes.byteOffset = byteOffset;
+        bf_attributes.byteStride = element_byteSize;
+        bf_attributes.byteLength = byteLength;
+        bf_attributes.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+        auto id_bf_attributes    = model.bufferViews.size();
+        model.bufferViews.push_back(bf_attributes);
         byteOffset += byteLength;
 
-        acc_positions.bufferView    = id_bf_positions;
-        // acc_positions.byteOffset    = 0;
+        // positions accessor
+        acc_positions.bufferView    = id_bf_attributes;
+        acc_positions.byteOffset    = 0;
         acc_positions.type          = TINYGLTF_TYPE_VEC3;
         acc_positions.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-        acc_positions.count         = element_count;
-        set_min_max(acc_positions, data.positions);
+        acc_positions.count         = vertex_count;
+        acc_positions.minValues = { amin[0], amin[1], amin[2] };
+        acc_positions.maxValues = { amax[0], amax[1], amax[2] };
         primitive.attributes["POSITION"] = model.accessors.size(); // The index of the accessor for positions
         model.accessors.push_back(acc_positions);
         
-        // normals
-        element_byteSize = 3 * sizeof(float);
-        element_count = data.normals.size();
-        byteLength = copy_to_buffer((unsigned char*)data.normals.data(), element_byteSize, element_count, byteOffset);
-
-        bf_normals.buffer     = buffer_idx;
-        bf_normals.byteOffset = byteOffset;
-        bf_normals.byteLength = byteLength;
-        bf_normals.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-        auto id_bf_normals    = model.bufferViews.size();
-        model.bufferViews.push_back(bf_normals);
-        byteOffset += byteLength;
-
-        acc_normals.bufferView    = id_bf_normals;
-        // acc_normals.byteOffset    = 0;
+        // normals accessor
+        acc_normals.bufferView    = id_bf_attributes;
+        acc_normals.byteOffset    = sizeof_position;
         acc_normals.type          = TINYGLTF_TYPE_VEC3;
         acc_normals.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-        acc_normals.count         = element_count;
-        set_min_max(acc_normals, data.normals);
+        acc_normals.count         = vertex_count;
+        acc_normals.minValues = { amin[3], amin[4], amin[5] };
+        acc_normals.maxValues = { amax[3], amax[4], amax[5] };
         primitive.attributes["NORMAL"] = model.accessors.size(); // The index of the accessor for normals
         model.accessors.push_back(acc_normals);
         
-        // feature_ids
-        element_byteSize = sizeof(float);
-        element_count = data.feature_ids.size();
-        byteLength = copy_to_buffer((unsigned char*)data.feature_ids.data(), element_byteSize, element_count, byteOffset);
-
-        bf_feature_ids.buffer     = buffer_idx;
-        bf_feature_ids.byteOffset = byteOffset;
-        bf_feature_ids.byteLength = byteLength;
-        bf_feature_ids.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-        auto id_bf_feature_ids    = model.bufferViews.size();
-        model.bufferViews.push_back(bf_feature_ids);
-        byteOffset += byteLength;
-
-        acc_feature_ids.bufferView    = id_bf_feature_ids;
-        // acc_feature_ids.byteOffset    = 0;
+        // feature_ids accessor
+        acc_feature_ids.bufferView    = id_bf_attributes;
+        acc_feature_ids.byteOffset    = sizeof_position + sizeof_normal;
         acc_feature_ids.type          = TINYGLTF_TYPE_SCALAR;
         acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-        acc_feature_ids.count         = element_count;
-        {
-          auto [min, max] = std::minmax_element(begin(data.feature_ids), end(data.feature_ids));
-          acc_feature_ids.minValues     = { *min };
-          acc_feature_ids.maxValues     = { *max };
-        }
+        acc_feature_ids.count         = vertex_count;
+        acc_feature_ids.minValues = { amin[6] };
+        acc_feature_ids.maxValues = { amax[6] };
         std::string fid = "_FEATURE_ID_" + std::to_string(feature_id_set_idx );
         primitive.attributes[fid] = model.accessors.size(); // The index of the accessor for feature ids
         model.accessors.push_back(acc_feature_ids);

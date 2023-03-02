@@ -11,6 +11,9 @@ find_package(nlohmann_json 3.10.5 CONFIG REQUIRED)
 include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/include
 )
+include_directories(
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src
+)
 
 set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
 set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
@@ -27,6 +30,7 @@ geoflow_create_plugin(
   nodes_cityjson.cpp
   nodes_cityfb.cpp
   nodes_gltf.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexgenerator.cpp
 )
 
 target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json tinygltf)
