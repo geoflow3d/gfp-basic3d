@@ -1,3 +1,6 @@
 [submodule "thirdparty/tinygltf"]
 	path = thirdparty/tinygltf
 	url = https://github.com/syoyo/tinygltf.git
+[submodule "thirdparty/meshoptimizer"]
+	path = thirdparty/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer.git
