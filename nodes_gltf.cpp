@@ -25,9 +25,10 @@
 
 namespace geoflow::nodes::basic3d
 {
-  typedef std::array<float,6> arr6f;
   typedef std::array<float,7> arr7f;
-  struct IntermediateDataHelper {
+  typedef std::vector<char> vec1c;
+  struct AttributeDataHelper {
+
     std::unordered_map<std::string, std::vector<arr7f>> data; // position [3f], normal[3f], feature_id[1f]
     std::unordered_map<std::string, unsigned> ftype_counts;
 
@@ -38,12 +39,20 @@ namespace geoflow::nodes::basic3d
     float feature_id_cnt = 0.0;
     size_t total_count;
 
-    IntermediateDataHelper(
+    AttributeDataHelper(
       const arr3f& center_point,
       NodeManager& manager,
       bool& relative_to_center
     ) : center_point(center_point), manager(manager), relative_to_center(relative_to_center)
     {
+    }
+
+    size_t get_total_feature_count() {
+      size_t total = 0;
+      for (const auto& [ftype, cnt] : ftype_counts) {
+        total += cnt;
+      }
+      return total;
     }
 
     void add_feature(
@@ -60,7 +69,13 @@ namespace geoflow::nodes::basic3d
       {
         for (auto &p_ : triangle)
         {
-          const auto& n_ = normals[i++];
+          const auto& n_ = normals[i];
+          // normal is 0 for a degenerate triangle. skip such points
+          if(!std::isnormal(n_[0]) && !std::isnormal(n_[1]) && !std::isnormal(n_[2])) {
+            break;
+          } 
+          i++;
+
           auto p = manager.coord_transform_rev(p_);
           // NB: narrowing double to float here, not ideal
           // reproject n_
@@ -92,6 +107,77 @@ namespace geoflow::nodes::basic3d
         ftype_counts[feature_type] += 1;
       } else {
         ftype_counts[feature_type] = 0;
+      }
+    }
+  };
+
+  struct MetadataHelper {
+    // We need to get the attribute values from the input and create contiguous
+    //  arrays from them, so that they can be added as a tightly-packed array
+    //  to the buffer.
+    struct StringAttributeOffset {
+      unsigned current_offset{};
+      std::vector<unsigned> offsets;
+    };
+    typedef std::variant<vec1b, vec1i, vec1f, vec1c> FlexVec;
+    std::map<std::string, FlexVec> feature_attribute_map{};
+    std::map<std::string, StringAttributeOffset> feature_attribute_string_offsets{};
+
+
+    void add_metadata(gfMultiFeatureInputTerminal& attributes_inp, gfSingleFeatureInputTerminal& triangle_collections_inp) {
+      auto fsize = triangle_collections_inp.size();
+      for (auto& term : attributes_inp.sub_terminals()) {
+        const auto& tname = term->get_name();
+        if (term->accepts_type(typeid(bool))) {
+          feature_attribute_map[tname] = std::move(vec1b{});
+        } else if (term->accepts_type(typeid(int))) {
+          feature_attribute_map[tname] = std::move(vec1i{});
+        } else if (term->accepts_type(typeid(float))) {
+          feature_attribute_map[tname] = std::move(vec1f{});
+        } else if (term->accepts_type(typeid(std::string))) {
+          feature_attribute_map[tname] = std::move(vec1c{});
+          StringAttributeOffset soff;
+          soff.current_offset = 0;
+          soff.offsets = {0};
+          feature_attribute_string_offsets.insert({tname, soff});
+        }
+      }
+
+      for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
+        if (!triangle_collections_inp.get_data_vec()[i].has_value())
+          continue;
+        
+        // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
+        //  the data just won't show up in the viewer, without giving any warnings.
+        //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
+        //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
+        //  that's a lie.
+        for (auto& term : attributes_inp.sub_terminals()) {
+          if (!term->get_data_vec()[i].has_value()) {
+            continue;
+          }
+          const auto& tname = term->get_name();
+          if (term->accepts_type(typeid(bool))) {
+            std::get<vec1b>(feature_attribute_map[tname]).emplace_back(term->get<const bool&>(i));
+          } else if (term->accepts_type(typeid(int))) {
+            std::get<vec1i>(feature_attribute_map[tname]).emplace_back(term->get<const int&>(i));
+          } else if (term->accepts_type(typeid(float))) {
+            std::get<vec1f>(feature_attribute_map[tname]).emplace_back(term->get<const float&>(i));
+          } else if (term->accepts_type(typeid(std::string))) {
+            std::string string_attr = term->get<const std::string&>(i);
+            // We store the string attributes in a contiguous vector of char-s. This
+            // makes it simpler to calculate its size and copy it to the buffer.
+            for (char s : string_attr) {
+              std::get<vec1c>(feature_attribute_map[tname]).emplace_back(s);
+            }
+            // For string attributes, we also need to keep track of the offsets.
+            auto string_byteLength = string_attr.size() * sizeof(char);
+            feature_attribute_string_offsets[tname].current_offset += string_byteLength;
+            feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
+          } else {
+            std::cout << "feature attribute " << tname << " is not bool/int/float/string" << std::endl;
+          }
+        }
       }
     }
   };
@@ -130,6 +216,7 @@ namespace geoflow::nodes::basic3d
     tinygltf::Model model;
     tinygltf::Mesh mesh;
     tinygltf::Buffer buffer;
+    size_t buffer_idx = 0;
     
     GLTFBuilder(){
       model.asset.generator = "Geoflow";
@@ -247,8 +334,7 @@ namespace geoflow::nodes::basic3d
       return byteLength;
     }
 
-    void add_geometry(IntermediateDataHelper& IDH) {
-      size_t buffer_idx = 0;
+    size_t add_geometry(AttributeDataHelper& IDH) {
       size_t bufferLength = 0;
       size_t byteOffset = 0;
       size_t feature_id_set_idx = 0;
@@ -368,6 +454,121 @@ namespace geoflow::nodes::basic3d
         primitive.extensions = primitive_extensions;
         mesh.primitives.push_back(primitive);
       }
+      model.extensionsUsed.emplace_back("EXT_mesh_features");
+      return byteOffset;
+    }
+
+    void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t byteOffset, size_t total_feature_count) {
+      // Schema definition
+      tinygltf::Value::Object metadata_class_properties;
+      for (const auto& [name, value_vec] : MH.feature_attribute_map) {
+        tinygltf::Value::Object metadata_property;
+        metadata_property["description"] = tinygltf::Value((std::string)"property description");
+        if (std::holds_alternative<vec1b>(value_vec)) {
+          metadata_property["type"] = tinygltf::Value((std::string)"BOOLEAN");
+        } else if (std::holds_alternative<vec1i>(value_vec)) {
+          metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
+          metadata_property["componentType"] = tinygltf::Value((std::string)"INT32");
+        } else if (std::holds_alternative<vec1f>(value_vec)) {
+          metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
+          metadata_property["componentType"] = tinygltf::Value((std::string)"FLOAT32");
+        } else if (std::holds_alternative<vec1c>(value_vec)) {
+          metadata_property["type"] = tinygltf::Value((std::string)"STRING");
+        } else {
+          std::cout << "unhandled feature attribute type" << std::endl;
+        }
+        metadata_class_properties[name] = tinygltf::Value(metadata_property);
+      }
+      tinygltf::Value::Object metadata_class;
+      metadata_class["name"] = tinygltf::Value(metadata_class_name);
+      metadata_class["description"] = tinygltf::Value((std::string)"class description");
+      metadata_class["properties"] = tinygltf::Value(metadata_class_properties);
+      tinygltf::Value::Object metadata_classes;
+      metadata_classes[metadata_class_name] = tinygltf::Value(metadata_class);
+      tinygltf::Value::Object metadata_schema;
+      metadata_schema["classes"] = tinygltf::Value(metadata_classes);
+
+      // Add the property tables for the feature attributes. The property tables
+      // reference bufferviews, which reference the complete array of the values
+      // of one feature attribute (column-based layout).
+      // https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_structural_metadata#ext_structural_metadata
+      // We need a bufferView for each feature attribute, plus the string offsets
+      // in case of string attributes.
+      std::map<std::string, std::tuple<unsigned long, unsigned long>> id_bf_attr_map{};
+      unsigned long byteLength(0);
+      for (auto& [name, value_vec] : MH.feature_attribute_map) {
+        // bufferView ID for the attribute
+        unsigned long id_bf_attr;
+        // bufferView ID for the attribute offsets https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
+        unsigned long id_bf_attr_offset(0); // this is always >0 if used
+        {
+          tinygltf::BufferView bf_attr;
+          if (const vec1b* vec = std::get_if<vec1b>(&value_vec)) {;
+            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(bool), byteOffset);
+          } else if (const vec1i* vec = std::get_if<vec1i>(&value_vec)) {;
+            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(int), byteOffset);
+          } else if (const vec1f* vec = std::get_if<vec1f>(&value_vec)) {;
+            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(float), byteOffset);
+          } else if (const vec1c* vec = std::get_if<vec1c>(&value_vec)) {;
+            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(char), byteOffset);
+          }
+          // Everything goes into the same buffer
+          bf_attr.buffer     = buffer_idx;
+          bf_attr.byteOffset = byteOffset;
+          bf_attr.byteLength = byteLength;
+          bf_attr.byteStride = 0; // all feature attribute value arrays need to be tightly packed https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#binary-table-format
+          bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+          id_bf_attr = model.bufferViews.size();
+          model.bufferViews.push_back(bf_attr);
+          byteOffset += byteLength;
+        }
+        if (std::holds_alternative<vec1c>(value_vec)) {
+          tinygltf::BufferView bf_attr;
+          auto& value_vec_offs = MH.feature_attribute_string_offsets[name].offsets;
+          byteLength = copy_to_buffer((unsigned char*)value_vec_offs.data(), value_vec_offs.size(), sizeof(unsigned), byteOffset);
+          // Everything goes into the same buffer
+          bf_attr.buffer     = buffer_idx;
+          bf_attr.byteOffset = byteOffset;
+          bf_attr.byteLength = byteLength;
+          bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+          id_bf_attr_offset = model.bufferViews.size();
+          model.bufferViews.push_back(bf_attr);
+          byteOffset += byteLength;
+        }
+        id_bf_attr_map[name] = {id_bf_attr, id_bf_attr_offset};
+      }
+
+      tinygltf::Value::Object properties_property_tbl;
+      for (const auto& [name, buffer_ids] : id_bf_attr_map) {
+        tinygltf::Value::Object property_tbl_attr;
+        auto                    buffer_id         = std::get<0>(buffer_ids);
+        auto                    buffer_id_offsets = std::get<1>(buffer_ids);
+        if (buffer_id_offsets == 0) {
+          property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
+        } else {
+          property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
+          property_tbl_attr["stringOffsets"] =
+            tinygltf::Value((int)buffer_id_offsets);
+          property_tbl_attr["stringOffsetType"] =
+            tinygltf::Value((std::string) "UINT32");
+        }
+        properties_property_tbl[name] = tinygltf::Value(property_tbl_attr);
+      }
+      tinygltf::Value::Object property_table;
+      property_table["class"] = tinygltf::Value((std::string)metadata_class_name);
+      property_table["count"] = tinygltf::Value((int)total_feature_count); // feature count
+      property_table["name"] = tinygltf::Value((std::string)"propertyTable name");
+      property_table["properties"] = tinygltf::Value(properties_property_tbl);
+
+      tinygltf::Value::Object ext_structural_metadata_object;
+      ext_structural_metadata_object["schema"] = tinygltf::Value(metadata_schema);
+      tinygltf::Value::Array property_tables;
+      property_tables.emplace_back(property_table);
+      ext_structural_metadata_object["propertyTables"] = tinygltf::Value(property_tables);
+      tinygltf::ExtensionMap root_extensions;
+      root_extensions["EXT_structural_metadata"] = tinygltf::Value(ext_structural_metadata_object);
+      model.extensions = root_extensions;
+      model.extensionsUsed.emplace_back("EXT_structural_metadata");
     }
 
     void finalise(bool relative_to_center, const arr3f centerpoint) {
@@ -407,9 +608,6 @@ namespace geoflow::nodes::basic3d
       scene.nodes.push_back(0);
       model.scenes.push_back(scene);
       model.defaultScene = 0;
-
-      // extensions
-      model.extensionsUsed.emplace_back("EXT_mesh_features");
     }
   };
 
@@ -437,7 +635,7 @@ namespace geoflow::nodes::basic3d
     arr3f centerpoint = global_bbox.center();
 
     // create intermediate vectors
-    IntermediateDataHelper iData(centerpoint, manager, relative_to_center);
+    AttributeDataHelper iData(centerpoint, manager, relative_to_center);
 
     for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
       if (!triangle_collections_inp.get_data_vec()[i].has_value())
@@ -464,248 +662,13 @@ namespace geoflow::nodes::basic3d
     }
 
     // attributes
-
-    // We need to get the attribute values from the input and create contiguous
-    //  arrays from them, so that they can be added as a tightly-packed array
-    //  to the buffer.
-    struct StringAttributeOffset {
-      unsigned current_offset{};
-      std::vector<unsigned> offsets;
-    };
-    std::map<std::string, std::vector<std::any>> feature_attribute_map{};
-    std::map<std::string, StringAttributeOffset> feature_attribute_string_offsets{};
-
-    bool attribute_initialised = false
-    for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
-      if (!triangle_collections_inp.get_data_vec()[i].has_value())
-        continue;
-      if (!attribute_initialised) {
-        std::cout << "initializing attribute container" << std::endl;
-        for (auto& term : attributes_inp.sub_terminals()) {
-          if (!term->get_data_vec()[i].has_value())
-            continue;
-          const auto& tname = term->get_name();
-          feature_attribute_map.insert({tname, std::vector<std::any>()});
-          if (term->accepts_type(typeid(std::string))) {
-            StringAttributeOffset soff;
-            soff.current_offset = 0;
-            soff.offsets = {0};
-            feature_attribute_string_offsets.insert({tname, soff});
-          }
-        }
-        attribute_initialised = true;
-      } 
-      
-      // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
-      //  the data just won't show up in the viewer, without giving any warnings.
-      //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
-      //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
-      //  that's a lie.
-      for (auto& term : attributes_inp.sub_terminals()) {
-        if (!term->get_data_vec()[i].has_value()) {
-          continue;
-        }
-        const auto& tname = term->get_name();
-        if (term->accepts_type(typeid(bool))) {
-          feature_attribute_map[tname].emplace_back(term->get<const bool&>(i));
-        } else if (term->accepts_type(typeid(int))) {
-          feature_attribute_map[tname].emplace_back(term->get<const int&>(i));
-        } else if (term->accepts_type(typeid(float))) {
-          feature_attribute_map[tname].emplace_back(term->get<const float&>(i));
-        } else if (term->accepts_type(typeid(std::string))) {
-          std::string string_attr = term->get<const std::string&>(i);
-          // We store the string attributes in a contiguous vector of char-s. This
-          // makes it simpler to calculate its size and copy it to the buffer.
-          for (char s : string_attr) {
-            feature_attribute_map[tname].emplace_back(s);
-          }
-          // For string attributes, we also need to keep track of the offsets.
-          auto string_byteLength = string_attr.size() * sizeof(char);
-          feature_attribute_string_offsets[tname].current_offset += string_byteLength;
-          feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
-        } else {
-          std::cout << "feature attribute " << tname << " is not bool/int/float/string" << std::endl;
-        }
-      }
-    }
-
-    // Schema definition
-    tinygltf::Value::Object metadata_class_properties;
-    for (const auto& [name, value_vec] : feature_attribute_map) {
-      tinygltf::Value::Object metadata_property;
-      metadata_property["description"] = tinygltf::Value((std::string)"property description");
-      if (value_vec[0].type() == typeid(bool)) {
-        metadata_property["type"] = tinygltf::Value((std::string)"BOOLEAN");
-      } else if (value_vec[0].type() == typeid(int)) {
-        metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
-        metadata_property["componentType"] = tinygltf::Value((std::string)"INT32");
-      } else if (value_vec[0].type() == typeid(float)) {
-        metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
-        metadata_property["componentType"] = tinygltf::Value((std::string)"FLOAT32");
-      } else if (value_vec[0].type() == typeid(char)) {
-        metadata_property["type"] = tinygltf::Value((std::string)"STRING");
-      } else {
-        std::cout << "unhandled feature attribute type" << std::endl;
-      }
-      metadata_class_properties[name] = tinygltf::Value(metadata_property);
-    }
-    std::string metadata_class_name = metadata_class_name_;
-    tinygltf::Value::Object metadata_class;
-    metadata_class["name"] = tinygltf::Value(metadata_class_name_);
-    metadata_class["description"] = tinygltf::Value((std::string)"class description");
-    metadata_class["properties"] = tinygltf::Value(metadata_class_properties);
-    tinygltf::Value::Object metadata_classes;
-    metadata_classes[metadata_class_name_] = tinygltf::Value(metadata_class);
-    tinygltf::Value::Object metadata_schema;
-    metadata_schema["classes"] = tinygltf::Value(metadata_classes);
-
-    // Add the property tables for the feature attributes. The property tables
-    // reference bufferviews, which reference the complete array of the values
-    // of one feature attribute (column-based layout).
-    // https://github.com/CesiumGS/glTF/tree/3d-tiles-next/extensions/2.0/Vendor/EXT_structural_metadata#ext_structural_metadata
-    // We need a bufferView for each feature attribute, plus the string offsets
-    // in case of string attributes.
-    std::map<std::string, std::tuple<unsigned long, unsigned long>> id_bf_attr_map{};
-    auto byteOffset_feature_attributes =
-        byteOffset_feature_id + feature_id_vec.size() * sizeof(float);
-    unsigned long total_attr_vec_size(0);
-    for (auto& [name, value_vec] : feature_attribute_map) {
-      value_vec.shrink_to_fit();
-      // bufferView ID for the attribute
-      unsigned long id_bf_attr;
-      // bufferView ID for the attribute offsets https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
-      unsigned long id_bf_attr_offset(0); // this is always >0 if used
-      {
-        tinygltf::BufferView bf_attr;
-        unsigned long type_size(0);
-        if (value_vec[0].type() == typeid(bool)) {
-          type_size = sizeof(bool);
-        } else if (value_vec[0].type() == typeid(int)) {
-          type_size = sizeof(int);
-        } else if (value_vec[0].type() == typeid(float)) {
-          type_size = sizeof(float);
-        } else if (value_vec[0].type() == typeid(char)) {
-          type_size = sizeof(char);
-        }
-        auto byteLength = value_vec.size() * type_size;
-        total_attr_vec_size += byteLength;
-        // Everything goes into the same buffer
-        bf_attr.buffer     = buffer_idx;
-        bf_attr.byteOffset = byteOffset_feature_attributes;
-        bf_attr.byteLength = byteLength;
-        bf_attr.byteStride = 0; // all feature attribute value arrays need to be tightly packed https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#binary-table-format
-        bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-        id_bf_attr = model.bufferViews.size();
-        model.bufferViews.push_back(bf_attr);
-        byteOffset_feature_attributes += byteLength;
-      }
-      if (value_vec[0].type() == typeid(char)) {
-        tinygltf::BufferView bf_attr;
-        auto& value_vec_offs = feature_attribute_string_offsets[name];
-        value_vec_offs.offsets.shrink_to_fit();
-        auto byteLength = value_vec_offs.offsets.size() * sizeof(unsigned);
-        total_attr_vec_size += byteLength;
-        // Everything goes into the same buffer
-        bf_attr.buffer     = buffer_idx;
-        bf_attr.byteOffset = byteOffset_feature_attributes;
-        bf_attr.byteLength = byteLength;
-        bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
-        id_bf_attr_offset = model.bufferViews.size();
-        model.bufferViews.push_back(bf_attr);
-        byteOffset_feature_attributes += byteLength;
-      }
-      id_bf_attr_map[name] = {id_bf_attr, id_bf_attr_offset};
-    }
-
-    tinygltf::Value::Object properties_property_tbl;
-    for (const auto& [name, buffer_ids] : id_bf_attr_map) {
-      tinygltf::Value::Object property_tbl_attr;
-      auto                    buffer_id         = std::get<0>(buffer_ids);
-      auto                    buffer_id_offsets = std::get<1>(buffer_ids);
-      if (buffer_id_offsets == 0) {
-        property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
-      } else {
-        property_tbl_attr["values"] = tinygltf::Value((int)buffer_id);
-        property_tbl_attr["stringOffsets"] =
-          tinygltf::Value((int)buffer_id_offsets);
-        property_tbl_attr["stringOffsetType"] =
-          tinygltf::Value((std::string) "UINT32");
-      }
-      properties_property_tbl[name] = tinygltf::Value(property_tbl_attr);
-    }
-    tinygltf::Value::Object property_table;
-    property_table["class"] = tinygltf::Value((std::string)metadata_class_name_);
-    property_table["count"] = tinygltf::Value((int)info_vec.size()); // feature count
-    property_table["name"] = tinygltf::Value((std::string)"propertyTable name");
-    property_table["properties"] = tinygltf::Value(properties_property_tbl);
-
-    tinygltf::Value::Object ext_structural_metadata_object;
-    ext_structural_metadata_object["schema"] = tinygltf::Value(metadata_schema);
-    tinygltf::Value::Array property_tables;
-    property_tables.emplace_back(property_table);
-    ext_structural_metadata_object["propertyTables"] = tinygltf::Value(property_tables);
-    tinygltf::ExtensionMap root_extensions;
-    root_extensions["EXT_structural_metadata"] = tinygltf::Value(ext_structural_metadata_object);
-
-    for (const auto& [name, value_vec] : feature_attribute_map) {
-      unsigned long type_size(0);
-      if (value_vec[0].type() == typeid(bool)) {
-        type_size = sizeof(bool);
-      } else if (value_vec[0].type() == typeid(int)) {
-        type_size = sizeof(int);
-        std::vector<int> value_vec_int;
-        value_vec_int.reserve(value_vec.size());
-        for (auto& i : value_vec) {
-          value_vec_int.emplace_back(std::any_cast<int>(i));
-        }
-        value_vec_int.shrink_to_fit();
-        auto value_vec_int_size = value_vec_int.size() * type_size;
-        memcpy(ptr_end_of_data,
-               (unsigned char*)value_vec_int.data(),
-               value_vec_int_size);
-        ptr_end_of_data += value_vec_int_size;
-      } else if (value_vec[0].type() == typeid(float)) {
-        type_size = sizeof(float);
-        std::vector<float> value_vec_float;
-        value_vec_float.reserve(value_vec.size());
-        for (auto& i : value_vec) {
-          value_vec_float.emplace_back(std::any_cast<float>(i));
-        }
-        value_vec_float.shrink_to_fit();
-        auto value_vec_float_size = value_vec_float.size() * type_size;
-        memcpy(ptr_end_of_data,
-               (unsigned char*)value_vec_float.data(),
-               value_vec_float_size);
-        ptr_end_of_data += value_vec_float_size;
-      } else if (value_vec[0].type() == typeid(char)) {
-        // Copy the attribute values
-        type_size = sizeof(char);
-        std::vector<char> value_vec_char;
-        value_vec_char.reserve(value_vec.size());
-        for (auto& i : value_vec) {
-          value_vec_char.emplace_back(std::any_cast<char>(i));
-        }
-        value_vec_char.shrink_to_fit();
-        auto value_vec_char_size = value_vec_char.size() * type_size;
-        memcpy(ptr_end_of_data,
-               (unsigned char*)value_vec_char.data(),
-               value_vec_char_size);
-        ptr_end_of_data += value_vec_char_size;
-        // Copy the string offsets
-        type_size = sizeof(unsigned);
-        auto stringoffset = feature_attribute_string_offsets[name];
-        auto offset_vec_size = stringoffset.offsets.size() * type_size;
-        memcpy(ptr_end_of_data,
-               (unsigned char*)stringoffset.offsets.data(),
-               offset_vec_size);
-        ptr_end_of_data += offset_vec_size;
-      }
-    }
-    model.extensionsUsed.emplace_back("EXT_structural_metadata");
+    MetadataHelper mData;
+    mData.add_metadata(attributes_inp, triangle_collections_inp);
 
     // build the gltf
     GLTFBuilder gltf;
-    gltf.add_geometry(iData);
+    size_t byteOffset = gltf.add_geometry(iData);
+    gltf.add_metadata(mData, manager.substitute_globals(metadata_class_name_), byteOffset, iData.get_total_feature_count());
     gltf.finalise(relative_to_center, centerpoint);
 
     // Save it to a file
