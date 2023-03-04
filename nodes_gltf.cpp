@@ -211,12 +211,39 @@ namespace geoflow::nodes::basic3d
     return {min, max};
   }
 
+  struct BufferManager {
+    tinygltf::Buffer buffer;
+    size_t idx = 0;
+    // stores the offset and length of the last appended chunk
+    size_t byteOffset, byteLength;
+
+    void append(unsigned char* src, const size_t& element_byteSize, const size_t& element_count, bool align=true) {
+      // add padding if needed
+      byteOffset = buffer.data.size();
+      size_t padding = 0;
+      if(align) {
+        padding = (4-(byteOffset % 4)) % 4;
+        for (int i =0; i<padding; ++i) {
+          buffer.data.push_back('\0');
+        }
+        byteOffset += padding;
+      }
+      
+      byteLength = element_count * element_byteSize;
+      buffer.data.resize( buffer.data.size() + byteLength );
+      memcpy(
+        buffer.data.data() + byteOffset,
+        src,
+        byteLength
+      );
+    }
+  };
+
   struct GLTFBuilder {
 
     tinygltf::Model model;
     tinygltf::Mesh mesh;
-    tinygltf::Buffer buffer;
-    size_t buffer_idx = 0;
+    BufferManager buffer;
     
     GLTFBuilder(){
       model.asset.generator = "Geoflow";
@@ -321,21 +348,7 @@ namespace geoflow::nodes::basic3d
       return model.materials.size()-1;
     }
 
-    size_t copy_to_buffer(unsigned char* src, const size_t& element_byteSize, const size_t& count, const size_t& byteOffset) {
-      size_t byteLength = count * element_byteSize;
-      buffer.data.resize( buffer.data.size() + byteLength );
-      // add padding if needed
-      // buffer.data.push_back('\0')
-      memcpy(
-        buffer.data.data() + byteOffset,
-        src,
-        byteLength
-      );
-      return byteLength;
-    }
-
     size_t add_geometry(AttributeDataHelper& IDH) {
-      size_t bufferLength = 0;
       size_t byteOffset = 0;
       size_t feature_id_set_idx = 0;
       for (auto& [ftype, data] : IDH.data) {
@@ -359,7 +372,6 @@ namespace geoflow::nodes::basic3d
 
 
         // indices copy data
-        size_t byteLength = 0;
         auto [min, max] = std::minmax_element(begin(indices), end(indices));
         // if (! (*max <= std::numeric_limits<unsigned short>::max())) {
         //   element_byteSize = sizeof(unsigned short);
@@ -367,19 +379,18 @@ namespace geoflow::nodes::basic3d
         size_t element_byteSize = sizeof(unsigned);
         if (element_byteSize == sizeof(unsigned short)) {
           std::vector<unsigned short> part( indices.begin(), indices.end() );
-          byteLength = copy_to_buffer((unsigned char*)part.data(), element_byteSize, index_count, byteOffset);
+          buffer.append((unsigned char*)part.data(), element_byteSize, index_count);
         } else { //if (max <= numeric_limits<unsigned int>::max()) {
-          byteLength = copy_to_buffer((unsigned char*)indices.data(), element_byteSize, index_count, byteOffset);
+          buffer.append((unsigned char*)indices.data(), element_byteSize, index_count);
         }
 
         // indices setup bufferview
-        bf_indices.buffer     = buffer_idx;
-        bf_indices.byteOffset = byteOffset;
-        bf_indices.byteLength = byteLength;
+        bf_indices.buffer     = buffer.idx;
+        bf_indices.byteOffset = buffer.byteOffset;
+        bf_indices.byteLength = buffer.byteLength;
         bf_indices.target     = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
         auto id_bf_indices    = model.bufferViews.size();
         model.bufferViews.push_back(bf_indices);
-        byteOffset += byteLength;
         
         // indices setup accessor
         acc_indices.bufferView    = id_bf_indices;
@@ -397,19 +408,18 @@ namespace geoflow::nodes::basic3d
         size_t sizeof_normal = 3*sizeof(float);
         size_t sizeof_fid = sizeof(float);
         element_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
-        byteLength = copy_to_buffer((unsigned char*)vertices.data(), element_byteSize, vertex_count, byteOffset);
+        buffer.append((unsigned char*)vertices.data(), element_byteSize, vertex_count);
 
         auto [amin, amax] = get_min_max(vertices);
 
         // attributes setup bufferview
-        bf_attributes.buffer     = buffer_idx;
-        bf_attributes.byteOffset = byteOffset;
+        bf_attributes.buffer     = buffer.idx;
+        bf_attributes.byteOffset = buffer.byteOffset;
         bf_attributes.byteStride = element_byteSize;
-        bf_attributes.byteLength = byteLength;
+        bf_attributes.byteLength = buffer.byteLength;
         bf_attributes.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
         auto id_bf_attributes    = model.bufferViews.size();
         model.bufferViews.push_back(bf_attributes);
-        byteOffset += byteLength;
 
         // positions accessor
         acc_positions.bufferView    = id_bf_attributes;
@@ -504,18 +514,18 @@ namespace geoflow::nodes::basic3d
         {
           tinygltf::BufferView bf_attr;
           if (const vec1b* vec = std::get_if<vec1b>(&value_vec)) {;
-            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(bool), byteOffset);
+            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(bool));
           } else if (const vec1i* vec = std::get_if<vec1i>(&value_vec)) {;
-            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(int), byteOffset);
+            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(int));
           } else if (const vec1f* vec = std::get_if<vec1f>(&value_vec)) {;
-            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(float), byteOffset);
+            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(float));
           } else if (const vec1c* vec = std::get_if<vec1c>(&value_vec)) {;
-            byteLength = copy_to_buffer((unsigned char*)&vec[0], vec->size(), sizeof(char), byteOffset);
+            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(char));
           }
           // Everything goes into the same buffer
-          bf_attr.buffer     = buffer_idx;
-          bf_attr.byteOffset = byteOffset;
-          bf_attr.byteLength = byteLength;
+          bf_attr.buffer     = buffer.idx;
+          bf_attr.byteOffset = buffer.byteOffset;
+          bf_attr.byteLength = buffer.byteLength;
           bf_attr.byteStride = 0; // all feature attribute value arrays need to be tightly packed https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#binary-table-format
           bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
           id_bf_attr = model.bufferViews.size();
@@ -525,11 +535,11 @@ namespace geoflow::nodes::basic3d
         if (std::holds_alternative<vec1c>(value_vec)) {
           tinygltf::BufferView bf_attr;
           auto& value_vec_offs = MH.feature_attribute_string_offsets[name].offsets;
-          byteLength = copy_to_buffer((unsigned char*)value_vec_offs.data(), value_vec_offs.size(), sizeof(unsigned), byteOffset);
+          buffer.append((unsigned char*)value_vec_offs.data(), value_vec_offs.size(), sizeof(unsigned));
           // Everything goes into the same buffer
-          bf_attr.buffer     = buffer_idx;
-          bf_attr.byteOffset = byteOffset;
-          bf_attr.byteLength = byteLength;
+          bf_attr.buffer     = buffer.idx;
+          bf_attr.byteOffset = buffer.byteOffset;
+          bf_attr.byteLength = buffer.byteLength;
           bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
           id_bf_attr_offset = model.bufferViews.size();
           model.bufferViews.push_back(bf_attr);
@@ -574,7 +584,7 @@ namespace geoflow::nodes::basic3d
     void finalise(bool relative_to_center, const arr3f centerpoint) {
 
       // add buffer and mesh objects to model
-      model.buffers.push_back(buffer);
+      model.buffers.push_back(buffer.buffer);
       model.meshes.push_back(mesh);
 
       // add a scene and a node
