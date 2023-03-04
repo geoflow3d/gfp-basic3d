@@ -373,10 +373,10 @@ namespace geoflow::nodes::basic3d
 
         // indices copy data
         auto [min, max] = std::minmax_element(begin(indices), end(indices));
-        // if (! (*max <= std::numeric_limits<unsigned short>::max())) {
-        //   element_byteSize = sizeof(unsigned short);
-        // }
         size_t element_byteSize = sizeof(unsigned);
+        if (! (*max <= std::numeric_limits<unsigned short>::max())) {
+          element_byteSize = sizeof(unsigned short);
+        }
         if (element_byteSize == sizeof(unsigned short)) {
           std::vector<unsigned short> part( indices.begin(), indices.end() );
           buffer.append((unsigned char*)part.data(), element_byteSize, index_count);
