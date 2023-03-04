@@ -284,65 +284,74 @@ namespace geoflow::nodes::basic3d
       return tinygltf::Value(ext_mesh_features_object);
     }
 
+    std::vector<double> hex2rgb(int hexValue) {
+      return {
+        ((hexValue >> 16) & 0xFF) / 255.0,  // Extract the RR byte
+        ((hexValue >> 8) & 0xFF) / 255.0,   // Extract the GG byte
+        ((hexValue) & 0xFF) / 255.0,         // Extract the BB byte
+        1.0
+      };
+    }
+
     size_t create_material(std::string type) {
       //building red
       if (type == "Building" or type == "BuildingPart" or type == "BuildingInstallation") {
         tinygltf::Material building;
-        building.pbrMetallicRoughness.baseColorFactor = { 1.000, 0.000, 0.000, 1.0 };
+        building.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xEC7658);
         model.materials.push_back(building);
       }
       // terrain brown
       else if (type == "TINRelief") {
         tinygltf::Material terrain;
-        terrain.pbrMetallicRoughness.baseColorFactor = { 0.588, 0.403, 0.211, 1.0 };
+        terrain.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xA6CD59);
         model.materials.push_back(terrain);
       }
       // transport grey
       else if (type == "Road" or type == "Railway" or type == "TransportSquare") {
         tinygltf::Material  transport;
-        transport.pbrMetallicRoughness.baseColorFactor = { 0.631, 0.607, 0.592, 1.0 };
+        transport.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x474447);
         model.materials.push_back(transport);
       }
       // waterbody blue
       else if (type == "WaterBody") {
         tinygltf::Material waterbody;
-        waterbody.pbrMetallicRoughness.baseColorFactor = { 0.070, 0.949, 0.972, 1.0 };
+        waterbody.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x293A4A);
         model.materials.push_back(waterbody);
       }
       // vegetation green
       else if (type == "PlantCover" or type == "SolitaryVegetationObject") {
         tinygltf::Material vegetation;
-        vegetation.pbrMetallicRoughness.baseColorFactor = { 0.000, 1.000, 0.000, 1.0 };
+        vegetation.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xA6CD59);
         model.materials.push_back(vegetation);
       }
       // landuse yellow
       else if (type == "LandUse") {
         tinygltf::Material  landuse;
-        landuse.pbrMetallicRoughness.baseColorFactor = { 0.909, 0.945, 0.196, 1.0 };
+        landuse.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xC3DBB5);
         model.materials.push_back(landuse);
       }
       // CityFurniture orange
       else if (type == "CityFurniture") {
         tinygltf::Material  CityFurniture;
-        CityFurniture.pbrMetallicRoughness.baseColorFactor = { 0.894, 0.494, 0.145, 1.0 };
+        CityFurniture.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
         model.materials.push_back(CityFurniture);
       }
       // bridge purple
       else if (type == "Bridge" or type == "BridgePart" or type == "BridgeInstallation" or type == "BridgeConstructionElement") {
         tinygltf::Material bridge;
-        bridge.pbrMetallicRoughness.baseColorFactor = { 0.466, 0.094, 0.905, 1.0 };
+        bridge.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
         model.materials.push_back(bridge);
       }
       // tunnel black
       else if (type == "Tunnel" or type == "TunnelPart" or type == "TunnelInstallation") {
         tinygltf::Material tunnel;
-        tunnel.pbrMetallicRoughness.baseColorFactor = { 0.011, 0.011, 0.007, 1.0 };
+        tunnel.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
         model.materials.push_back(tunnel);
       }
       // GenericCityObject pink
       else if (type == "GenericCityObject") {
         tinygltf::Material GenericCityObject;
-        GenericCityObject.pbrMetallicRoughness.baseColorFactor = { 0.909, 0.188, 0.827, 1.0 };
+        GenericCityObject.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
         model.materials.push_back(GenericCityObject);
       }
       return model.materials.size()-1;
