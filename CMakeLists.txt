@@ -31,6 +31,9 @@ geoflow_create_plugin(
   nodes_cityfb.cpp
   nodes_gltf.cpp
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexgenerator.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vcacheoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/overdrawoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vfetchoptimizer.cpp
 )
 
 target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json tinygltf)

@@ -369,15 +369,15 @@ namespace geoflow::nodes::basic3d
         std::vector<arr7f> vertices(vertex_count);
         meshopt_remapIndexBuffer(&indices[0], NULL, index_count, &remap[0]);
         meshopt_remapVertexBuffer(&vertices[0], &data[0], index_count, sizeof(arr7f), &remap[0]);
-
+        meshopt_optimizeVertexCache(&indices[0], &indices[0], index_count, vertex_count);
+        meshopt_optimizeOverdraw(&indices[0], &indices[0], index_count, &vertices[0][0], vertex_count, sizeof(arr7f), 1.05f);
+        meshopt_optimizeVertexFetch(&vertices[0], &indices[0], index_count, &vertices[0], vertex_count, sizeof(arr7f));
 
         // indices copy data
         auto [min, max] = std::minmax_element(begin(indices), end(indices));
         size_t element_byteSize = sizeof(unsigned);
-        if (! (*max <= std::numeric_limits<unsigned short>::max())) {
+        if ((*max <= std::numeric_limits<unsigned short>::max())) {
           element_byteSize = sizeof(unsigned short);
-        }
-        if (element_byteSize == sizeof(unsigned short)) {
           std::vector<unsigned short> part( indices.begin(), indices.end() );
           buffer.append((unsigned char*)part.data(), element_byteSize, index_count);
         } else { //if (max <= numeric_limits<unsigned int>::max()) {
@@ -396,7 +396,11 @@ namespace geoflow::nodes::basic3d
         acc_indices.bufferView    = id_bf_indices;
         // acc_indices.byteOffset    = 0;
         acc_indices.type          = TINYGLTF_TYPE_SCALAR;
-        acc_indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        if (element_byteSize == sizeof(unsigned short)) {
+          acc_indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+        } else {
+          acc_indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        }
         acc_indices.count         = index_count;
         acc_indices.minValues     = { double(*min) };
         acc_indices.maxValues     = { double(*max) };
