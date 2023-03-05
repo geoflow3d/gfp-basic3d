@@ -106,7 +106,7 @@ namespace geoflow::nodes::basic3d
       if (ftype_counts.count(feature_type)) {
         ftype_counts[feature_type] += 1;
       } else {
-        ftype_counts[feature_type] = 0;
+        ftype_counts[feature_type] = 1;
       }
     }
   };
@@ -127,15 +127,20 @@ namespace geoflow::nodes::basic3d
     void add_metadata(gfMultiFeatureInputTerminal& attributes_inp, gfSingleFeatureInputTerminal& triangle_collections_inp) {
       auto fsize = triangle_collections_inp.size();
       for (auto& term : attributes_inp.sub_terminals()) {
+        std::cout << "a count="<<term->size()<<std::endl;
         const auto& tname = term->get_name();
         if (term->accepts_type(typeid(bool))) {
           feature_attribute_map[tname] = std::move(vec1b{});
+          std::get<vec1b>(feature_attribute_map[tname]).reserve(fsize);
         } else if (term->accepts_type(typeid(int))) {
           feature_attribute_map[tname] = std::move(vec1i{});
+          std::get<vec1i>(feature_attribute_map[tname]).reserve(fsize);
         } else if (term->accepts_type(typeid(float))) {
           feature_attribute_map[tname] = std::move(vec1f{});
+          std::get<vec1f>(feature_attribute_map[tname]).reserve(fsize);
         } else if (term->accepts_type(typeid(std::string))) {
           feature_attribute_map[tname] = std::move(vec1c{});
+          std::get<vec1c>(feature_attribute_map[tname]).reserve(fsize*10);
           StringAttributeOffset soff;
           soff.current_offset = 0;
           soff.offsets = {0};
@@ -146,6 +151,9 @@ namespace geoflow::nodes::basic3d
       for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
         if (!triangle_collections_inp.get_data_vec()[i].has_value())
           continue;
+        const auto tc = triangle_collections_inp.get<TriangleCollection>(i);
+        if (tc.vertex_count() == 0)
+          continue;
         
         // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
         //  the data just won't show up in the viewer, without giving any warnings.
@@ -153,27 +161,46 @@ namespace geoflow::nodes::basic3d
         //  It doesn't matter what their specs say, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#component-type, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#scalars, https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#strings
         //  that's a lie.
         for (auto& term : attributes_inp.sub_terminals()) {
-          if (!term->get_data_vec()[i].has_value()) {
-            continue;
-          }
+          // if (!term->get_data_vec()[i].has_value()) {
+          //   continue;
+          // }
           const auto& tname = term->get_name();
+          bool has_value = term->get_data_vec()[i].has_value();
           if (term->accepts_type(typeid(bool))) {
-            std::get<vec1b>(feature_attribute_map[tname]).emplace_back(term->get<const bool&>(i));
-          } else if (term->accepts_type(typeid(int))) {
-            std::get<vec1i>(feature_attribute_map[tname]).emplace_back(term->get<const int&>(i));
-          } else if (term->accepts_type(typeid(float))) {
-            std::get<vec1f>(feature_attribute_map[tname]).emplace_back(term->get<const float&>(i));
-          } else if (term->accepts_type(typeid(std::string))) {
-            std::string string_attr = term->get<const std::string&>(i);
-            // We store the string attributes in a contiguous vector of char-s. This
-            // makes it simpler to calculate its size and copy it to the buffer.
-            for (char s : string_attr) {
-              std::get<vec1c>(feature_attribute_map[tname]).emplace_back(s);
+            if (has_value) {
+              std::get<vec1b>(feature_attribute_map[tname]).emplace_back(term->get<const bool&>(i));
+            } else {
+              // NB bool cannot have proper nodata value, see: https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#required-properties-no-data-values-and-default-values
+              std::get<vec1b>(feature_attribute_map[tname]).emplace_back(false);
             }
-            // For string attributes, we also need to keep track of the offsets.
-            auto string_byteLength = string_attr.size() * sizeof(char);
-            feature_attribute_string_offsets[tname].current_offset += string_byteLength;
-            feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
+          } else if (term->accepts_type(typeid(int))) {
+            if (has_value) {
+              std::get<vec1i>(feature_attribute_map[tname]).emplace_back(term->get<const int&>(i));
+            } else {
+              std::get<vec1i>(feature_attribute_map[tname]).emplace_back(std::numeric_limits<int>::max());
+            }
+          } else if (term->accepts_type(typeid(float))) {
+            if (has_value) {
+              std::get<vec1f>(feature_attribute_map[tname]).emplace_back(term->get<const float&>(i));
+            } else {
+              std::get<vec1f>(feature_attribute_map[tname]).emplace_back(std::numeric_limits<float>::max());
+            }
+          } else if (term->accepts_type(typeid(std::string))) {
+            if (has_value) {
+              std::string string_attr = term->get<const std::string&>(i);
+              // We store the string attributes in a contiguous vector of char-s. This
+              // makes it simpler to calculate its size and copy it to the buffer.
+              for (char s : string_attr) {
+                std::get<vec1c>(feature_attribute_map[tname]).emplace_back(s);
+              }
+              // For string attributes, we also need to keep track of the offsets.
+              auto string_byteLength = string_attr.size() * sizeof(char);
+              feature_attribute_string_offsets[tname].current_offset += string_byteLength;
+              feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
+            } else {
+              // just push empty string for nodata
+              feature_attribute_string_offsets[tname].offsets.emplace_back(feature_attribute_string_offsets[tname].current_offset);
+            }
           } else {
             std::cout << "feature attribute " << tname << " is not bool/int/float/string" << std::endl;
           }
@@ -217,17 +244,15 @@ namespace geoflow::nodes::basic3d
     // stores the offset and length of the last appended chunk
     size_t byteOffset, byteLength;
 
-    void append(unsigned char* src, const size_t& element_byteSize, const size_t& element_count, bool align=true) {
+    void append(unsigned char* src, const size_t& element_byteSize, const size_t& element_count, size_t alignBy=4) {
       // add padding if needed
       byteOffset = buffer.data.size();
       size_t padding = 0;
-      if(align) {
-        padding = (4-(byteOffset % 4)) % 4;
-        for (int i =0; i<padding; ++i) {
-          buffer.data.push_back('\0');
-        }
-        byteOffset += padding;
+      padding = (alignBy-(byteOffset % alignBy)) % alignBy;
+      for (int i=0; i<padding; ++i) {
+        buffer.data.push_back('\0');
       }
+      byteOffset += padding;
       
       byteLength = element_count * element_byteSize;
       buffer.data.resize( buffer.data.size() + byteLength );
@@ -357,8 +382,7 @@ namespace geoflow::nodes::basic3d
       return model.materials.size()-1;
     }
 
-    size_t add_geometry(AttributeDataHelper& IDH) {
-      size_t byteOffset = 0;
+    void add_geometry(AttributeDataHelper& IDH) {
       size_t feature_id_set_idx = 0;
       for (auto& [ftype, data] : IDH.data) {
         tinygltf::Primitive  primitive;
@@ -417,13 +441,14 @@ namespace geoflow::nodes::basic3d
         model.accessors.push_back(acc_indices);
         
         // attributes copy data
+        auto [amin, amax] = get_min_max(vertices);
+
+
         size_t sizeof_position = 3*sizeof(float);
         size_t sizeof_normal = 3*sizeof(float);
         size_t sizeof_fid = sizeof(float);
         element_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
         buffer.append((unsigned char*)vertices.data(), element_byteSize, vertex_count);
-
-        auto [amin, amax] = get_min_max(vertices);
 
         // attributes setup bufferview
         bf_attributes.buffer     = buffer.idx;
@@ -478,23 +503,24 @@ namespace geoflow::nodes::basic3d
         mesh.primitives.push_back(primitive);
       }
       model.extensionsUsed.emplace_back("EXT_mesh_features");
-      return byteOffset;
     }
 
-    void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t byteOffset, size_t total_feature_count) {
+    void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t total_feature_count) {
       // Schema definition
       tinygltf::Value::Object metadata_class_properties;
       for (const auto& [name, value_vec] : MH.feature_attribute_map) {
         tinygltf::Value::Object metadata_property;
-        metadata_property["description"] = tinygltf::Value((std::string)"property description");
+        // metadata_property["description"] = tinygltf::Value((std::string)"property description");
         if (std::holds_alternative<vec1b>(value_vec)) {
           metadata_property["type"] = tinygltf::Value((std::string)"BOOLEAN");
         } else if (std::holds_alternative<vec1i>(value_vec)) {
           metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
           metadata_property["componentType"] = tinygltf::Value((std::string)"INT32");
+          metadata_property["noData"] = tinygltf::Value(std::numeric_limits<int>::max());
         } else if (std::holds_alternative<vec1f>(value_vec)) {
           metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
           metadata_property["componentType"] = tinygltf::Value((std::string)"FLOAT32");
+          metadata_property["noData"] = tinygltf::Value(std::numeric_limits<float>::max());
         } else if (std::holds_alternative<vec1c>(value_vec)) {
           metadata_property["type"] = tinygltf::Value((std::string)"STRING");
         } else {
@@ -526,14 +552,16 @@ namespace geoflow::nodes::basic3d
         unsigned long id_bf_attr_offset(0); // this is always >0 if used
         {
           tinygltf::BufferView bf_attr;
-          if (const vec1b* vec = std::get_if<vec1b>(&value_vec)) {;
-            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(bool));
-          } else if (const vec1i* vec = std::get_if<vec1i>(&value_vec)) {;
-            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(int));
-          } else if (const vec1f* vec = std::get_if<vec1f>(&value_vec)) {;
-            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(float));
-          } else if (const vec1c* vec = std::get_if<vec1c>(&value_vec)) {;
-            buffer.append((unsigned char*)&vec[0], vec->size(), sizeof(char));
+          if (const vec1b* vec = std::get_if<vec1b>(&value_vec)) {
+            std::cout << "bool attribute not stored!!\n";
+            // see https://stackoverflow.com/questions/46115669/why-does-stdvectorbool-have-no-data
+            // buffer.append((unsigned char*)(&vec->operator[](0)), vec->size(), sizeof(bool), 8);
+          } else if (const vec1i* vec = std::get_if<vec1i>(&value_vec)) {
+            buffer.append((unsigned char*)vec->data(), vec->size(), sizeof(int), 8);
+          } else if (const vec1f* vec = std::get_if<vec1f>(&value_vec)) {
+            buffer.append((unsigned char*)vec->data(), vec->size(), sizeof(float), 8);
+          } else if (const vec1c* vec = std::get_if<vec1c>(&value_vec)) {
+            buffer.append((unsigned char*)vec->data(), vec->size(), sizeof(char), 8);
           }
           // Everything goes into the same buffer
           bf_attr.buffer     = buffer.idx;
@@ -543,12 +571,11 @@ namespace geoflow::nodes::basic3d
           bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
           id_bf_attr = model.bufferViews.size();
           model.bufferViews.push_back(bf_attr);
-          byteOffset += byteLength;
         }
         if (std::holds_alternative<vec1c>(value_vec)) {
           tinygltf::BufferView bf_attr;
           auto& value_vec_offs = MH.feature_attribute_string_offsets[name].offsets;
-          buffer.append((unsigned char*)value_vec_offs.data(), value_vec_offs.size(), sizeof(unsigned));
+          buffer.append((unsigned char*)value_vec_offs.data(), value_vec_offs.size(), sizeof(unsigned), 8);
           // Everything goes into the same buffer
           bf_attr.buffer     = buffer.idx;
           bf_attr.byteOffset = buffer.byteOffset;
@@ -556,7 +583,6 @@ namespace geoflow::nodes::basic3d
           bf_attr.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
           id_bf_attr_offset = model.bufferViews.size();
           model.bufferViews.push_back(bf_attr);
-          byteOffset += byteLength;
         }
         id_bf_attr_map[name] = {id_bf_attr, id_bf_attr_offset};
       }
@@ -647,12 +673,18 @@ namespace geoflow::nodes::basic3d
 
     // determine approximate centerpoint
     Box global_bbox;
+    std::cout << "tc count="<<triangle_collections_inp.size()<<std::endl;
+    std::cout << "a count="<<triangle_collections_inp.size()<<std::endl;
     for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
-      if (!triangle_collections_inp.get_data_vec()[i].has_value())
+      if (!triangle_collections_inp.get_data_vec()[i].has_value()) {
+        std::cout << "skip tc i="<<i<<std::endl;
         continue;
+      }
       auto tc = triangle_collections_inp.get<TriangleCollection>(i);
-      if (tc.vertex_count() == 0)
+      if (tc.vertex_count() == 0) {
+        std::cout << "skip tc i="<<i<<std::endl;
         continue;
+      }
       global_bbox.add(manager.coord_transform_rev(tc[0][1]));
     }
     arr3f centerpoint = global_bbox.center();
@@ -690,8 +722,8 @@ namespace geoflow::nodes::basic3d
 
     // build the gltf
     GLTFBuilder gltf;
-    size_t byteOffset = gltf.add_geometry(iData);
-    gltf.add_metadata(mData, manager.substitute_globals(metadata_class_name_), byteOffset, iData.get_total_feature_count());
+    gltf.add_geometry(iData);
+    gltf.add_metadata(mData, manager.substitute_globals(metadata_class_name_), iData.get_total_feature_count());
     gltf.finalise(relative_to_center, centerpoint);
 
     // Save it to a file
