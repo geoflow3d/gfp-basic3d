@@ -207,6 +207,19 @@ namespace geoflow::nodes::basic3d
           }
         }
       }
+      // remove string attributes if there are not characters to write. This prevents potentially empty bufferviews later on.
+      std::vector<std::string> to_erase;
+      for (auto& [name, values] : feature_attribute_map) {
+        if(const auto* vec = std::get_if<vec1c>(&values)){
+          if (vec->size()==0) {
+            to_erase.emplace_back(name);
+          }
+        }
+      }
+      for (auto& name : to_erase) {
+        feature_attribute_map.erase(name);
+        feature_attribute_string_offsets.erase(name);
+      }
     }
   };
 
