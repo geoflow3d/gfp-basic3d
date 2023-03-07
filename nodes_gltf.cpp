@@ -337,40 +337,67 @@ namespace geoflow::nodes::basic3d
   };
 
   void quantizeVertices(
-    const std::vector<arr7f>& vertices, std::vector<unsigned char>& obuf,
+    const std::vector<arr7f>& vertices,
+    const arr3f& scale,
+    const bool& quantize_fid,
+    std::vector<unsigned char>& obuf,
     size_t& sizeof_position,
     size_t& sizeof_normal,
     size_t& sizeof_fid,
     size_t& vertex_byteSize
   ) {
-    sizeof_position = 3*sizeof(float);
+    // if(quantize_fid) {
+    //   sizeof_fid = sizeof(uint16_t);
+    // } else {
+      sizeof_fid = sizeof(float); // need to add 2 bytes to make the vertex_byteSize divisable by all component types in the vertex
+    // }
+    sizeof_position = 3*sizeof(int16_t) +2;
     sizeof_normal = sizeof(unsigned int);
-    sizeof_fid = sizeof(float);
     vertex_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
 
     size_t element_count = vertices.size();
     
-    obuf.resize(element_count * vertex_byteSize);
+    obuf.resize(element_count * (vertex_byteSize));
     
     for (size_t i=0; i<element_count; ++i) {
+      // feature id's
+      // if(quantize_fid) {
+      //   uint16_t qfid = (uint16_t)vertices[i][6];
+      //   memcpy(
+      //     obuf.data() + i*vertex_byteSize,
+      //     (unsigned char*)&qfid,
+      //     sizeof_fid
+      //   );
+      // }
+      // else {
+        memcpy(
+          obuf.data() + i*vertex_byteSize,
+          (unsigned char*)&vertices[i][6],
+          sizeof_fid
+        );
+      // }
+
+      // quantize positions, we assume they are already centered on the origin
+      std::array<int16_t,4> normp{
+        (int16_t)(meshopt_quantizeSnorm(vertices[i][0]/scale[0], 16)),
+        (int16_t)(meshopt_quantizeSnorm(vertices[i][1]/scale[1], 16)),
+        (int16_t)(meshopt_quantizeSnorm(vertices[i][2]/scale[2], 16)),
+        0
+      };
       memcpy(
-        obuf.data() + i*vertex_byteSize,
-        (unsigned char*)&vertices[i][0],
-        sizeof_position
+        obuf.data() + i*vertex_byteSize + sizeof_fid,
+        normp.data(),
+        (sizeof_position)
       );
+
       // quantize normals
       auto nx = (int8_t)(meshopt_quantizeSnorm(vertices[i][3], 8));
       auto ny = (int8_t)(meshopt_quantizeSnorm(vertices[i][4], 8));
       auto nz = (int8_t)(meshopt_quantizeSnorm(vertices[i][5], 8));
-      obuf[i*vertex_byteSize + sizeof_position+0] = *(unsigned char*)&nx;
-      obuf[i*vertex_byteSize + sizeof_position+1] = *(unsigned char*)&ny;
-      obuf[i*vertex_byteSize + sizeof_position+2] = *(unsigned char*)&nz;
-      obuf[i*vertex_byteSize + sizeof_position+3] = *(unsigned char*)&"\0";
-      memcpy(
-        obuf.data() + i*vertex_byteSize + sizeof_position + sizeof_normal,
-        (unsigned char*)&vertices[i][6],
-        sizeof_fid
-      );
+      obuf[i*vertex_byteSize + sizeof_fid + sizeof_position+0] = *(unsigned char*)&nx;
+      obuf[i*vertex_byteSize + sizeof_fid + sizeof_position+1] = *(unsigned char*)&ny;
+      obuf[i*vertex_byteSize + sizeof_fid + sizeof_position+2] = *(unsigned char*)&nz;
+      obuf[i*vertex_byteSize + sizeof_fid + sizeof_position+3] = *(unsigned char*)&"\0";
     }
   }
 
@@ -516,7 +543,7 @@ namespace geoflow::nodes::basic3d
       return model.materials.size()-1;
     }
 
-    void add_geometry(AttributeDataHelper& IDH, bool quantize_vertex) {
+    void add_geometry(AttributeDataHelper& IDH, const bool& quantize_vertex, const bool& quantize_fid, const arr3f& scale) {
       size_t feature_id_set_idx = 0;
       for (auto& [ftype, data] : IDH.data) {
         tinygltf::Primitive  primitive;
@@ -535,9 +562,11 @@ namespace geoflow::nodes::basic3d
 
         std::vector<unsigned> indices(index_count);
         std::vector<arr7f> vertices(vertex_count);
+
+        meshopt_encodeIndexVersion(1);
         meshopt_remapIndexBuffer(&indices[0], NULL, index_count, &remap[0]);
         meshopt_remapVertexBuffer(&vertices[0], &data[0], index_count, vertex_size, &remap[0]);
-        meshopt_optimizeVertexCache(&indices[0], &indices[0], index_count, vertex_count);
+        meshopt_optimizeVertexCacheStrip(&indices[0], &indices[0], index_count, vertex_count);
         meshopt_optimizeOverdraw(&indices[0], &indices[0], index_count, &vertices[0][0], vertex_count, vertex_size, 1.05f);
         meshopt_optimizeVertexFetch(&vertices[0], &indices[0], index_count, &vertices[0], vertex_count, vertex_size);
 
@@ -546,7 +575,7 @@ namespace geoflow::nodes::basic3d
         // indices copy data
         auto [min, max] = std::minmax_element(begin(indices), end(indices));
         size_t element_byteSize = sizeof(unsigned);
-        if ((*max <= std::numeric_limits<unsigned short>::max())) {
+        if (quantize_vertex && (*max <= std::numeric_limits<unsigned short>::max())) {
           element_byteSize = sizeof(unsigned short);
           std::vector<unsigned short> part( indices.begin(), indices.end() );
           
@@ -619,6 +648,8 @@ namespace geoflow::nodes::basic3d
           std::vector<unsigned char> obuf;
           quantizeVertices(
             vertices, 
+            scale,
+            quantize_fid,
             obuf,
             sizeof_position,
             sizeof_normal,
@@ -653,7 +684,7 @@ namespace geoflow::nodes::basic3d
         bf_attributes.byteStride = element_byteSize;
         if (meshopt_compress) {
           bf_attributes.buffer     = dummyBuf.idx;
-          bf_attributes.byteOffset = dummyBuf.buffer.fallbackByteLength;
+          // bf_attributes.byteOffset = dummyBuf.buffer.fallbackByteLength;
           dummyBuf.add(bf_attributes.byteLength);
 
           bf_attributes.extensions = create_ext_meshopt_compression(
@@ -671,27 +702,66 @@ namespace geoflow::nodes::basic3d
         auto id_bf_attributes    = model.bufferViews.size();
         model.bufferViews.push_back(bf_attributes);
 
+        // feature_ids accessor
+        acc_feature_ids.bufferView    = id_bf_attributes;
+        acc_feature_ids.byteOffset    = 0;
+        acc_feature_ids.type          = TINYGLTF_TYPE_SCALAR;
+        if (quantize_fid) {
+          acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+        } else {
+          acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        }
+        acc_feature_ids.count         = vertex_count;
+        acc_feature_ids.minValues = { amin[6] };
+        acc_feature_ids.maxValues = { amax[6] };
+        std::string fid = "_FEATURE_ID_" + std::to_string(feature_id_set_idx );
+        primitive.attributes[fid] = model.accessors.size(); // The index of the accessor for feature ids
+        model.accessors.push_back(acc_feature_ids);
+
         // positions accessor
         acc_positions.bufferView    = id_bf_attributes;
-        acc_positions.byteOffset    = 0;
+        acc_positions.byteOffset    = sizeof_fid;
         acc_positions.type          = TINYGLTF_TYPE_VEC3;
         acc_positions.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
         acc_positions.count         = vertex_count;
-        acc_positions.minValues = { amin[0], amin[1], amin[2] };
-        acc_positions.maxValues = { amax[0], amax[1], amax[2] };
+        if (quantize_vertex) {
+          acc_positions.componentType = TINYGLTF_COMPONENT_TYPE_SHORT;
+          acc_positions.normalized = true;
+          acc_positions.minValues = { 
+            (double)meshopt_quantizeSnorm(amin[0]/scale[0], 16),
+            (double)meshopt_quantizeSnorm(amin[1]/scale[1], 16),
+            (double)meshopt_quantizeSnorm(amin[2]/scale[2], 16) 
+          };
+          acc_positions.maxValues = { 
+            (double)meshopt_quantizeSnorm(amax[0]/scale[0], 16),
+            (double)meshopt_quantizeSnorm(amax[1]/scale[1], 16),
+            (double)meshopt_quantizeSnorm(amax[2]/scale[2], 16) 
+          };
+        } else {
+          acc_positions.minValues = { amin[0], amin[1], amin[2] };
+          acc_positions.maxValues = { amax[0], amax[1], amax[2] };
+        }
         primitive.attributes["POSITION"] = model.accessors.size(); // The index of the accessor for positions
         model.accessors.push_back(acc_positions);
         
         // normals accessor
         acc_normals.bufferView    = id_bf_attributes;
-        acc_normals.byteOffset    = sizeof_position;
+        acc_normals.byteOffset    = sizeof_fid + sizeof_position;
         acc_normals.count         = vertex_count;
         acc_normals.type          = TINYGLTF_TYPE_VEC3;
-        if (quantize_vertex){
+        if (quantize_vertex) {
           acc_normals.componentType = TINYGLTF_COMPONENT_TYPE_BYTE;
           acc_normals.normalized = true;
-          acc_normals.minValues = { (double)meshopt_quantizeSnorm(float(amin[3]),8), (double)meshopt_quantizeSnorm(float(amin[4]),8), (double)meshopt_quantizeSnorm(float(amin[5]),8) };
-          acc_normals.maxValues = { (double)meshopt_quantizeSnorm(float(amax[3]),8), (double)meshopt_quantizeSnorm(float(amax[4]),8), (double)meshopt_quantizeSnorm(float(amax[5]),8) };
+          acc_normals.minValues = {
+            (double)meshopt_quantizeSnorm(float(amin[3]),8),
+            (double)meshopt_quantizeSnorm(float(amin[4]),8),
+            (double)meshopt_quantizeSnorm(float(amin[5]),8) 
+          };
+          acc_normals.maxValues = {
+            (double)meshopt_quantizeSnorm(float(amax[3]),8),
+            (double)meshopt_quantizeSnorm(float(amax[4]),8),
+            (double)meshopt_quantizeSnorm(float(amax[5]),8) 
+          };
         } else {
           acc_normals.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
           acc_normals.minValues = { amin[3], amin[4], amin[5] };
@@ -699,18 +769,6 @@ namespace geoflow::nodes::basic3d
         }
         primitive.attributes["NORMAL"] = model.accessors.size(); // The index of the accessor for normals
         model.accessors.push_back(acc_normals);
-        
-        // feature_ids accessor
-        acc_feature_ids.bufferView    = id_bf_attributes;
-        acc_feature_ids.byteOffset    = sizeof_position + sizeof_normal;
-        acc_feature_ids.type          = TINYGLTF_TYPE_SCALAR;
-        acc_feature_ids.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-        acc_feature_ids.count         = vertex_count;
-        acc_feature_ids.minValues = { amin[6] };
-        acc_feature_ids.maxValues = { amax[6] };
-        std::string fid = "_FEATURE_ID_" + std::to_string(feature_id_set_idx );
-        primitive.attributes[fid] = model.accessors.size(); // The index of the accessor for feature ids
-        model.accessors.push_back(acc_feature_ids);
 
         tinygltf::ExtensionMap primitive_extensions;
         primitive_extensions["EXT_mesh_features"] = create_ext_mesh_features(
@@ -728,8 +786,10 @@ namespace geoflow::nodes::basic3d
         model.extensionsRequired.emplace_back("EXT_meshopt_compression");
       }
 
-      model.extensionsUsed.emplace_back("KHR_mesh_quantization");
-      model.extensionsRequired.emplace_back("KHR_mesh_quantization");
+      if (quantize_vertex) {
+        model.extensionsUsed.emplace_back("KHR_mesh_quantization");
+        model.extensionsRequired.emplace_back("KHR_mesh_quantization");
+      }
     }
 
     void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t total_feature_count) {
@@ -847,7 +907,7 @@ namespace geoflow::nodes::basic3d
       model.extensionsUsed.emplace_back("EXT_structural_metadata");
     }
 
-    void finalise(bool relative_to_center, const arr3f centerpoint) {
+    void finalise(bool relative_to_center, const arr3f centerpoint, const arr3f& scale) {
 
       // add buffer and mesh objects to model
       model.buffers.push_back(buffer.buffer);
@@ -865,22 +925,22 @@ namespace geoflow::nodes::basic3d
       // matrices are in column major order
       if(relative_to_center) {
         // also include a translation by multiplication with translation matrix. ie
-        //  | 1  0  0  0 |   | 1 0 0 c0 |
-        //  | 0  0  1  0 |   | 0 1 0 c1 |
-        //  | 0 -1  0  0 | . | 0 0 1 c2 |
-        //  | 0  0  0  1 |   | 0 0 0 1  |
+        //  | 1  0  0  0 |   | s1 0  0  c0 |
+        //  | 0  0  1  0 |   | 0  s2 0  c1 |
+        //  | 0 -1  0  0 | . | 0  0  s3 c2 |
+        //  | 0  0  0  1 |   | 0  0  0  1  |
         node.matrix = {
-          1,  0,  0,  0,
-          0,  0, -1,  0,
-          0,  1,  0,  0,
-          centerpoint[0],  centerpoint[2], -centerpoint[1],  1
+          scale[0],       0,              0,               0,
+          0,              0,              -scale[1],       0,
+          0,              scale[2],       0,               0,
+          centerpoint[0], centerpoint[2], -centerpoint[1], 1
         };
       } else {
         node.matrix = {
-          1,  0,  0,  0,
-          0,  0, -1,  0,
-          0,  1,  0,  0,
-          0,  0,  0,  1
+          scale[0],  0,        0,          0,
+          0,         0,        -scale[1],  0,
+          0,         scale[2], 0,          0,
+          0,         0,        0,          1
         };
       }
       model.nodes.push_back(node);
@@ -915,12 +975,16 @@ namespace geoflow::nodes::basic3d
         std::cout << "skip tc i="<<i<<std::endl;
         continue;
       }
-      global_bbox.add(manager.coord_transform_rev(tc[0][1]));
+      for (auto &triangle : tc) {
+        for (auto &p : triangle) {
+          global_bbox.add(manager.coord_transform_rev(p));
+        }
+      }
     }
-    arr3f centerpoint = global_bbox.center();
+    arr3f gcenter = global_bbox.center();
 
     // create intermediate vectors
-    AttributeDataHelper iData(centerpoint, manager, relative_to_center);
+    AttributeDataHelper iData(gcenter, manager, relative_to_center);
 
     for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
       if (!triangle_collections_inp.get_data_vec()[i].has_value())
@@ -952,9 +1016,22 @@ namespace geoflow::nodes::basic3d
 
     // build the gltf
     GLTFBuilder gltf(meshopt_compress);
-    gltf.add_geometry(iData, quantize_vertex);
-    gltf.add_metadata(mData, manager.substitute_globals(metadata_class_name_), iData.get_total_feature_count());
-    gltf.finalise(relative_to_center, centerpoint);
+    auto total_feature_count = iData.get_total_feature_count();
+    auto gmax = global_bbox.max();
+    arr3f gscale{1., 1., 1.};
+    if(quantize_vertex) {
+      gscale = {
+        (gmax[0]- gcenter[0]),
+        (gmax[1]- gcenter[1]),
+        (gmax[2]- gcenter[2])
+      };
+    }
+    // quantizing the fid does not make sense in combination with the 4-byte alignment requirement for each vertex element
+    // see https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#data-alignment
+    bool quantize_fid = false; //total_feature_count <= std::numeric_limits<uint16_t>::max();
+    gltf.add_geometry(iData, quantize_vertex, quantize_fid, gscale);
+    gltf.add_metadata(mData, manager.substitute_globals(metadata_class_name_), total_feature_count);
+    gltf.finalise(relative_to_center, gcenter, gscale);
 
     // Save it to a file
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
