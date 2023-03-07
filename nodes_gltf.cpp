@@ -20,6 +20,9 @@
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_NO_INCLUDE_JSON
+#define TINYGLTF_NO_STB_IMAGE
+#define TINYGLTF_NO_STB_IMAGE_WRITE
 #include "tiny_gltf.h"
 #include <nlohmann/json.hpp>
 #include <meshoptimizer.h>
@@ -252,9 +255,29 @@ namespace geoflow::nodes::basic3d
     return {min, max};
   }
 
+  // this is a fallback buffer to use with EXT_meshopt_compression
+  struct FallbackBufferManager {
+    int idx = 1;
+    tinygltf::Buffer buffer;
+
+    FallbackBufferManager() {
+      tinygltf::Value::Object extObj;
+
+      extObj["fallback"] = tinygltf::Value(true);
+
+      tinygltf::ExtensionMap extMap;
+      extMap["EXT_meshopt_compression"] = tinygltf::Value(extObj);
+      buffer.extensions = extMap;
+    }
+
+    void add(size_t byteLength) {
+      buffer.fallbackByteLength += byteLength;
+    }
+  };
+
   struct BufferManager {
     tinygltf::Buffer buffer;
-    size_t idx = 0;
+    int idx = 0;
     // stores the offset and length of the last appended chunk
     size_t byteOffset, byteLength;
 
@@ -318,6 +341,7 @@ namespace geoflow::nodes::basic3d
     tinygltf::Model model;
     tinygltf::Mesh mesh;
     BufferManager buffer;
+    FallbackBufferManager dummyBuf;
     
     GLTFBuilder(){
       model.asset.generator = "Geoflow";
@@ -356,6 +380,28 @@ namespace geoflow::nodes::basic3d
       tinygltf::Value::Object ext_mesh_features_object;
       ext_mesh_features_object["featureIds"] = tinygltf::Value(featureId_sets);
       return tinygltf::Value(ext_mesh_features_object);
+    }
+
+    tinygltf::ExtensionMap create_ext_meshopt_compression(
+      size_t byteOffset,
+      size_t byteLength,
+      size_t byteStride,
+      std::string mode,
+      size_t featureCount
+    ) {
+      tinygltf::Value::Object extObj;
+
+      extObj["buffer"] = tinygltf::Value(buffer.idx);
+      extObj["byteOffset"] = tinygltf::Value((int)byteOffset);
+      extObj["byteLength"] = tinygltf::Value((int)byteLength);
+      extObj["byteStride"] = tinygltf::Value((int)byteStride);
+      extObj["mode"] = tinygltf::Value(mode);
+      extObj["count"] = tinygltf::Value((int)featureCount);
+
+      tinygltf::ExtensionMap extMap;
+      extMap["EXT_meshopt_compression"] = tinygltf::Value(extObj);
+
+      return extMap;
     }
 
     std::vector<double> hex2rgb(int hexValue) {
@@ -443,17 +489,26 @@ namespace geoflow::nodes::basic3d
         tinygltf::Accessor   acc_feature_ids;
 
         // create indices and remap vertices
+        size_t vertex_size = sizeof(arr7f);
         size_t index_count = data.size();
         std::vector<unsigned int> remap(index_count); // allocate temporary memory for the remap table
-        size_t vertex_count = meshopt_generateVertexRemap(&remap[0], NULL, index_count, &data[0], index_count, sizeof(arr7f));
+        size_t vertex_count = meshopt_generateVertexRemap(&remap[0], NULL, index_count, &data[0], index_count, vertex_size);
 
         std::vector<unsigned> indices(index_count);
         std::vector<arr7f> vertices(vertex_count);
         meshopt_remapIndexBuffer(&indices[0], NULL, index_count, &remap[0]);
-        meshopt_remapVertexBuffer(&vertices[0], &data[0], index_count, sizeof(arr7f), &remap[0]);
+        meshopt_remapVertexBuffer(&vertices[0], &data[0], index_count, vertex_size, &remap[0]);
         meshopt_optimizeVertexCache(&indices[0], &indices[0], index_count, vertex_count);
-        meshopt_optimizeOverdraw(&indices[0], &indices[0], index_count, &vertices[0][0], vertex_count, sizeof(arr7f), 1.05f);
-        meshopt_optimizeVertexFetch(&vertices[0], &indices[0], index_count, &vertices[0], vertex_count, sizeof(arr7f));
+        meshopt_optimizeOverdraw(&indices[0], &indices[0], index_count, &vertices[0][0], vertex_count, vertex_size, 1.05f);
+        meshopt_optimizeVertexFetch(&vertices[0], &indices[0], index_count, &vertices[0], vertex_count, vertex_size);
+
+        // quantisation
+
+        // compression
+        // std::vector<unsigned char> vbuf(meshopt_encodeVertexBufferBound(vertex_count, vertex_size));
+        // vbuf.resize(meshopt_encodeVertexBuffer(&vbuf[0], vbuf.size(), vertices, vertex_count, vertex_size));
+
+
 
         // indices copy data
         auto [min, max] = std::minmax_element(begin(indices), end(indices));
@@ -461,16 +516,35 @@ namespace geoflow::nodes::basic3d
         if ((*max <= std::numeric_limits<unsigned short>::max())) {
           element_byteSize = sizeof(unsigned short);
           std::vector<unsigned short> part( indices.begin(), indices.end() );
-          buffer.append((unsigned char*)part.data(), element_byteSize, index_count);
-        } else { //if (max <= numeric_limits<unsigned int>::max()) {
-          buffer.append((unsigned char*)indices.data(), element_byteSize, index_count);
+          
+          // meshopt compression
+          std::vector<unsigned char> ibuf(meshopt_encodeIndexBufferBound(index_count, vertex_count));
+          ibuf.resize(meshopt_encodeIndexBuffer(&ibuf[0], ibuf.size(), &part[0], index_count));
+
+          buffer.append((unsigned char*)ibuf.data(), sizeof(unsigned char), ibuf.size());
+        } else {
+          // meshopt compression
+          std::vector<unsigned char> ibuf(meshopt_encodeIndexBufferBound(index_count, vertex_count));
+          ibuf.resize(meshopt_encodeIndexBuffer(&ibuf[0], ibuf.size(), &indices[0], index_count));
+          
+          buffer.append((unsigned char*)ibuf.data(), sizeof(unsigned char), ibuf.size());
         }
 
         // indices setup bufferview
-        bf_indices.buffer     = buffer.idx;
-        bf_indices.byteOffset = buffer.byteOffset;
-        bf_indices.byteLength = buffer.byteLength;
+        bf_indices.buffer     = dummyBuf.idx; //buffer.idx;
+        bf_indices.byteOffset = dummyBuf.buffer.fallbackByteLength;
+        bf_indices.byteLength = index_count*element_byteSize;
         bf_indices.target     = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+        dummyBuf.add(bf_indices.byteLength);
+        
+        bf_indices.extensions = create_ext_meshopt_compression(
+          buffer.byteOffset,
+          buffer.byteLength,
+          element_byteSize,
+          "TRIANGLES",
+          index_count
+        );
+        
         auto id_bf_indices    = model.bufferViews.size();
         model.bufferViews.push_back(bf_indices);
         
@@ -566,6 +640,12 @@ namespace geoflow::nodes::basic3d
         mesh.primitives.push_back(primitive);
       }
       model.extensionsUsed.emplace_back("EXT_mesh_features");
+      
+      model.extensionsUsed.emplace_back("EXT_meshopt_compression");
+      model.extensionsRequired.emplace_back("EXT_meshopt_compression");
+
+      model.extensionsUsed.emplace_back("KHR_mesh_quantization");
+      model.extensionsRequired.emplace_back("KHR_mesh_quantization");
     }
 
     void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t total_feature_count) {
@@ -687,6 +767,7 @@ namespace geoflow::nodes::basic3d
 
       // add buffer and mesh objects to model
       model.buffers.push_back(buffer.buffer);
+      model.buffers.push_back(dummyBuf.buffer);
       model.meshes.push_back(mesh);
 
       // add a scene and a node
@@ -720,9 +801,6 @@ namespace geoflow::nodes::basic3d
       scene.nodes.push_back(0);
       model.scenes.push_back(scene);
       model.defaultScene = 0;
-
-      model.extensionsUsed.emplace_back("KHR_mesh_quantization");
-      model.extensionsRequired.emplace_back("KHR_mesh_quantization");
     }
   };
 

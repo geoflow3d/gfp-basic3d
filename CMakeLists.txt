@@ -14,14 +14,10 @@ include_directories(
 include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src
 )
-
-set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
-set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
-add_subdirectory(
-  ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf
+include_directories(
+  ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf/
 )
 
-set(GF_PLUGIN_NAME ${PROJECT_NAME})
 set(GF_PLUGIN_TARGET_NAME "gfp_core_io")
 set(GF_PLUGIN_REGISTER ${PROJECT_SOURCE_DIR}/register.hpp)
 geoflow_create_plugin(
@@ -34,6 +30,8 @@ geoflow_create_plugin(
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vcacheoptimizer.cpp
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/overdrawoptimizer.cpp
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vfetchoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexcodec.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vertexcodec.cpp 
 )
 
-target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json tinygltf)
+target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json)
