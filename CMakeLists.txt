@@ -18,6 +18,7 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf/
 )
 
+set(GF_PLUGIN_NAME ${PROJECT_NAME})
 set(GF_PLUGIN_TARGET_NAME "gfp_core_io")
 set(GF_PLUGIN_REGISTER ${PROJECT_SOURCE_DIR}/register.hpp)
 geoflow_create_plugin(
