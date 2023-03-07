@@ -336,6 +336,44 @@ namespace geoflow::nodes::basic3d
     }
   };
 
+  void quantizeVertices(
+    const std::vector<arr7f>& vertices, std::vector<unsigned char>& obuf,
+    size_t& sizeof_position,
+    size_t& sizeof_normal,
+    size_t& sizeof_fid,
+    size_t& vertex_byteSize
+  ) {
+    sizeof_position = 3*sizeof(float);
+    sizeof_normal = sizeof(unsigned int);
+    sizeof_fid = sizeof(float);
+    vertex_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
+
+    size_t element_count = vertices.size();
+    
+    obuf.resize(element_count * vertex_byteSize);
+    
+    for (size_t i=0; i<element_count; ++i) {
+      memcpy(
+        obuf.data() + i*vertex_byteSize,
+        (unsigned char*)&vertices[i][0],
+        sizeof_position
+      );
+      // quantize normals
+      auto nx = (int8_t)(meshopt_quantizeSnorm(vertices[i][3], 8));
+      auto ny = (int8_t)(meshopt_quantizeSnorm(vertices[i][4], 8));
+      auto nz = (int8_t)(meshopt_quantizeSnorm(vertices[i][5], 8));
+      obuf[i*vertex_byteSize + sizeof_position+0] = *(unsigned char*)&nx;
+      obuf[i*vertex_byteSize + sizeof_position+1] = *(unsigned char*)&ny;
+      obuf[i*vertex_byteSize + sizeof_position+2] = *(unsigned char*)&nz;
+      obuf[i*vertex_byteSize + sizeof_position+3] = *(unsigned char*)&"\0";
+      memcpy(
+        obuf.data() + i*vertex_byteSize + sizeof_position + sizeof_normal,
+        (unsigned char*)&vertices[i][6],
+        sizeof_fid
+      );
+    }
+  }
+
   struct GLTFBuilder {
 
     tinygltf::Model model;
@@ -578,21 +616,58 @@ namespace geoflow::nodes::basic3d
         element_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
 
         if (quantize_vertex){
-          buffer.appendVerticesQuantized(vertices);
-          sizeof_position = buffer.sizeof_position;
-          sizeof_normal = buffer.sizeof_normal;
-          sizeof_fid = buffer.sizeof_fid;
-          element_byteSize = buffer.vertex_byteSize;
+          std::vector<unsigned char> obuf;
+          quantizeVertices(
+            vertices, 
+            obuf,
+            sizeof_position,
+            sizeof_normal,
+            sizeof_fid,
+            element_byteSize
+          );
+          if(meshopt_compress) {
+            std::vector<unsigned char> zbuf(meshopt_encodeVertexBufferBound(vertex_count, element_byteSize));
+            zbuf.resize(meshopt_encodeVertexBuffer(&zbuf[0], zbuf.size(), &obuf[0], vertex_count, element_byteSize));
+            buffer.append(zbuf.data(), sizeof(unsigned char), zbuf.size());
+          } else {
+            buffer.append(obuf.data(), element_byteSize, vertex_count);
+          }
+          // buffer.appendVerticesQuantized(vertices);
+          // sizeof_position = buffer.sizeof_position;
+          // sizeof_normal = buffer.sizeof_normal;
+          // sizeof_fid = buffer.sizeof_fid;
+          // element_byteSize = buffer.vertex_byteSize;
         } else {
-          buffer.append((unsigned char*)vertices.data(), element_byteSize, vertex_count);
+          if(meshopt_compress) {
+            std::vector<unsigned char> vbuf(meshopt_encodeVertexBufferBound(vertex_count, element_byteSize));
+            vbuf.resize(meshopt_encodeVertexBuffer(&vbuf[0], vbuf.size(), &vertices[0], vertex_count, element_byteSize));
+            buffer.append(vbuf.data(), sizeof(unsigned char), vbuf.size());
+          } else {
+            buffer.append((unsigned char*)vertices.data(), element_byteSize, vertex_count);
+          }
         }
 
         // attributes setup bufferview
-        bf_attributes.buffer     = buffer.idx;
-        bf_attributes.byteOffset = buffer.byteOffset;
-        bf_attributes.byteStride = element_byteSize;
-        bf_attributes.byteLength = buffer.byteLength;
+        bf_attributes.byteLength = vertex_count * element_byteSize;
         bf_attributes.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+        bf_attributes.byteStride = element_byteSize;
+        if (meshopt_compress) {
+          bf_attributes.buffer     = dummyBuf.idx;
+          bf_attributes.byteOffset = dummyBuf.buffer.fallbackByteLength;
+          dummyBuf.add(bf_attributes.byteLength);
+
+          bf_attributes.extensions = create_ext_meshopt_compression(
+            buffer.byteOffset,
+            buffer.byteLength,
+            element_byteSize,
+            "ATTRIBUTES",
+            vertex_count
+          );
+        } else {
+          bf_attributes.buffer     = buffer.idx;
+          bf_attributes.byteOffset = buffer.byteOffset;
+          bf_attributes.byteLength = buffer.byteLength;
+        }
         auto id_bf_attributes    = model.bufferViews.size();
         model.bufferViews.push_back(bf_attributes);
 
