@@ -476,6 +476,27 @@ class GLTFWriterNode : public Node {
   std::string feature_id_attribute_;
   std::string metadata_class_name_;
 
+  std::string colorBuilding = "#EC7658";
+  std::string colorBuildingPart = "#EC7658";
+  std::string colorBuildingInstallation = "#EC7658";
+  std::string colorTINRelief = "#A6CD59";
+  std::string colorRoad = "#474447";
+  std::string colorRailway = "#474447";
+  std::string colorTransportSquare = "#474447";
+  std::string colorWaterBody = "#293A4A";
+  std::string colorPlantCover = "#A6CD59";
+  std::string colorSolitaryVegetationObject = "#A6CD59";
+  std::string colorLandUse = "#C3DBB5";
+  std::string colorCityFurniture = "#4F4A6A";
+  std::string colorBridge = "#4F4A6A";
+  std::string colorBridgePart = "#4F4A6A";
+  std::string colorBridgeInstallation = "#4F4A6A";
+  std::string colorBridgeConstructionElement = "#4F4A6A";
+  std::string colorTunnel = "#4F4A6A";
+  std::string colorTunnelPart = "#4F4A6A";
+  std::string colorTunnelInstallation = "#4F4A6A";
+  std::string colorGenericCityObject = "#4F4A6A";
+
 public:
   using Node::Node;
 
@@ -497,6 +518,28 @@ public:
     add_param(ParamBool(meshopt_compress, "meshopt_compress", "meshopt_compress"));
     // add_param(ParamString(feature_id_attribute_, "feature_id", "The feature attribute to use as the _FEATURE_ID vertex attribute value in the EXT_mesh_features extension. The attribute value must be cast-able to a float. If empty, it will be a sequential ID per feature."));
     add_param(ParamString(metadata_class_name_, "metadata_class", "The name of the metadata class to create (for EXT_structural_metadata)"));
+
+    add_param(ParamString(colorBuilding, "colorBuilding", "hex color value for feature type Building"));
+    add_param(ParamString(colorBuildingPart, "colorBuildingPart", "hex color value for feature type BuildingPart"));
+    add_param(ParamString(colorBuildingInstallation, "colorBuildingInstallation", "hex color value for feature type BuildingInstallation"));
+    add_param(ParamString(colorTINRelief, "colorTINRelief", "hex color value for feature type TINRelief"));
+    add_param(ParamString(colorRoad, "colorRoad", "hex color value for feature type Road"));
+    add_param(ParamString(colorRailway, "colorRailway", "hex color value for feature type Railway"));
+    add_param(ParamString(colorTransportSquare, "colorTransportSquare", "hex color value for feature type TransportSquare"));
+    add_param(ParamString(colorWaterBody, "colorWaterBody", "hex color value for feature type WaterBody"));
+    add_param(ParamString(colorPlantCover, "colorPlantCover", "hex color value for feature type PlantCover"));
+    add_param(ParamString(colorSolitaryVegetationObject, "colorSolitaryVegetationObject", "hex color value for feature type SolitaryVegetationObject"));
+    add_param(ParamString(colorLandUse, "colorLandUse", "hex color value for feature type LandUse"));
+    add_param(ParamString(colorCityFurniture, "colorCityFurniture", "hex color value for feature type CityFurniture"));
+    add_param(ParamString(colorBridge, "colorBridge", "hex color value for feature type Bridge"));
+    add_param(ParamString(colorBridgePart, "colorBridgePart", "hex color value for feature type BridgePart"));
+    add_param(ParamString(colorBridgeInstallation, "colorBridgeInstallation", "hex color value for feature type BridgeInstallation"));
+    add_param(ParamString(colorBridgeConstructionElement, "colorBridgeConstructionElement", "hex color value for feature type BridgeConstructionElement"));
+    add_param(ParamString(colorTunnel, "colorTunnel", "hex color value for feature type Tunnel"));
+    add_param(ParamString(colorTunnelPart, "colorTunnelPart", "hex color value for feature type TunnelPart"));
+    add_param(ParamString(colorTunnelInstallation, "colorTunnelInstallation", "hex color value for feature type TunnelInstallation"));
+    add_param(ParamString(colorGenericCityObject, "colorGenericCityObject", "hex color value for feature type GenericCityObject"));
+    
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }

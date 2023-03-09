@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "nodes.hpp"
 #include <limits>
-#include <bitset>
+#include <regex>
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -41,7 +41,7 @@ namespace geoflow::nodes::basic3d
     bool relative_to_center;
 
     float feature_id_cnt = 0.0;
-    size_t total_count;
+    size_t total_count = 0;
 
     AttributeDataHelper(
       const arr3f& center_point,
@@ -103,8 +103,7 @@ namespace geoflow::nodes::basic3d
             n[2]/l,
             feature_id_cnt
           });
-          ++total_count;
-        }
+          ++total_count;     }
       }
       feature_id_cnt += 1.0;
       if (ftype_counts.count(feature_type)) {
@@ -253,6 +252,20 @@ namespace geoflow::nodes::basic3d
       }
     }
     return {min, max};
+  }
+
+  int hexString2Int(const std::string& hexString) {
+    std::regex pattern("#([0-9A-Fa-f]{6})"); // regular expression pattern
+    std::smatch match;
+    int intValue;
+    if (std::regex_search(hexString, match, pattern)) {
+      // match[0] contains the entire string that matches the pattern
+      // match[1] contains the hex value portion of the string
+      intValue = std::stoi(match[1].str(), 0, 16); // convert hex string to int
+    } else {
+      throw(gfException("Not a valid hex color value: " + hexString));
+    }
+    return intValue;
   }
 
   // this is a fallback buffer to use with EXT_meshopt_compression
@@ -408,8 +421,10 @@ namespace geoflow::nodes::basic3d
     BufferManager buffer;
     FallbackBufferManager dummyBuf;
     bool meshopt_compress;
+    std::unordered_map<std::string, int>& colors;
     
-    GLTFBuilder(bool meshopt_compress) : meshopt_compress(meshopt_compress){
+    GLTFBuilder(bool meshopt_compress, std::unordered_map<std::string, int>& colors_) 
+    : meshopt_compress(meshopt_compress), colors(colors_) {
       model.asset.generator = "Geoflow";
       model.asset.version = "2.0";
     }
@@ -480,66 +495,9 @@ namespace geoflow::nodes::basic3d
     }
 
     size_t create_material(std::string type) {
-      //building red
-      if (type == "Building" or type == "BuildingPart" or type == "BuildingInstallation") {
-        tinygltf::Material building;
-        building.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xEC7658);
-        model.materials.push_back(building);
-      }
-      // terrain brown
-      else if (type == "TINRelief") {
-        tinygltf::Material terrain;
-        terrain.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xA6CD59);
-        model.materials.push_back(terrain);
-      }
-      // transport grey
-      else if (type == "Road" or type == "Railway" or type == "TransportSquare") {
-        tinygltf::Material  transport;
-        transport.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x474447);
-        model.materials.push_back(transport);
-      }
-      // waterbody blue
-      else if (type == "WaterBody") {
-        tinygltf::Material waterbody;
-        waterbody.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x293A4A);
-        model.materials.push_back(waterbody);
-      }
-      // vegetation green
-      else if (type == "PlantCover" or type == "SolitaryVegetationObject") {
-        tinygltf::Material vegetation;
-        vegetation.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xA6CD59);
-        model.materials.push_back(vegetation);
-      }
-      // landuse yellow
-      else if (type == "LandUse") {
-        tinygltf::Material  landuse;
-        landuse.pbrMetallicRoughness.baseColorFactor = hex2rgb(0xC3DBB5);
-        model.materials.push_back(landuse);
-      }
-      // CityFurniture orange
-      else if (type == "CityFurniture") {
-        tinygltf::Material  CityFurniture;
-        CityFurniture.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
-        model.materials.push_back(CityFurniture);
-      }
-      // bridge purple
-      else if (type == "Bridge" or type == "BridgePart" or type == "BridgeInstallation" or type == "BridgeConstructionElement") {
-        tinygltf::Material bridge;
-        bridge.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
-        model.materials.push_back(bridge);
-      }
-      // tunnel black
-      else if (type == "Tunnel" or type == "TunnelPart" or type == "TunnelInstallation") {
-        tinygltf::Material tunnel;
-        tunnel.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
-        model.materials.push_back(tunnel);
-      }
-      // GenericCityObject pink
-      else if (type == "GenericCityObject") {
-        tinygltf::Material GenericCityObject;
-        GenericCityObject.pbrMetallicRoughness.baseColorFactor = hex2rgb(0x4F4A6A);
-        model.materials.push_back(GenericCityObject);
-      }
+      tinygltf::Material mat;
+      mat.pbrMetallicRoughness.baseColorFactor = hex2rgb(colors.at(type));
+      model.materials.push_back(mat);
       return model.materials.size()-1;
     }
 
@@ -605,7 +563,7 @@ namespace geoflow::nodes::basic3d
         bf_indices.target     = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
         if (meshopt_compress) {
           bf_indices.buffer     = dummyBuf.idx; //buffer.idx;
-          bf_indices.byteOffset = dummyBuf.buffer.fallbackByteLength;
+          // bf_indices.byteOffset = dummyBuf.buffer.fallbackByteLength;
           dummyBuf.add(bf_indices.byteLength);
           
           bf_indices.extensions = create_ext_meshopt_compression(
@@ -1015,7 +973,29 @@ namespace geoflow::nodes::basic3d
     mData.add_metadata(attributes_inp, triangle_collections_inp);
 
     // build the gltf
-    GLTFBuilder gltf(meshopt_compress);
+    std::unordered_map<std::string, int> colors {
+      {"Building", hexString2Int(colorBuilding)},
+      {"BuildingPart", hexString2Int(colorBuildingPart)},
+      {"BuildingInstallation", hexString2Int(colorBuildingInstallation)},
+      {"TINRelief", hexString2Int(colorTINRelief)},
+      {"Road", hexString2Int(colorRoad)},
+      {"Railway", hexString2Int(colorRailway)},
+      {"TransportSquare", hexString2Int(colorTransportSquare)},
+      {"WaterBody", hexString2Int(colorWaterBody)},
+      {"PlantCover", hexString2Int(colorPlantCover)},
+      {"SolitaryVegetationObject", hexString2Int(colorSolitaryVegetationObject)},
+      {"LandUse", hexString2Int(colorLandUse)},
+      {"CityFurniture", hexString2Int(colorCityFurniture)},
+      {"Bridge", hexString2Int(colorBridge)},
+      {"BridgePart", hexString2Int(colorBridgePart)},
+      {"BridgeInstallation", hexString2Int(colorBridgeInstallation)},
+      {"BridgeConstructionElement", hexString2Int(colorBridgeConstructionElement)},
+      {"Tunnel", hexString2Int(colorTunnel)},
+      {"TunnelPart", hexString2Int(colorTunnelPart)},
+      {"TunnelInstallation", hexString2Int(colorTunnelInstallation)},
+      {"GenericCityObject", hexString2Int(colorGenericCityObject)}
+    };
+    GLTFBuilder gltf(meshopt_compress, colors);
     auto total_feature_count = iData.get_total_feature_count();
     auto gmax = global_bbox.max();
     arr3f gscale{1., 1., 1.};
