@@ -974,26 +974,26 @@ namespace geoflow::nodes::basic3d
 
     // build the gltf
     std::unordered_map<std::string, int> colors {
-      {"Building", hexString2Int(colorBuilding)},
-      {"BuildingPart", hexString2Int(colorBuildingPart)},
-      {"BuildingInstallation", hexString2Int(colorBuildingInstallation)},
-      {"TINRelief", hexString2Int(colorTINRelief)},
-      {"Road", hexString2Int(colorRoad)},
-      {"Railway", hexString2Int(colorRailway)},
-      {"TransportSquare", hexString2Int(colorTransportSquare)},
-      {"WaterBody", hexString2Int(colorWaterBody)},
-      {"PlantCover", hexString2Int(colorPlantCover)},
-      {"SolitaryVegetationObject", hexString2Int(colorSolitaryVegetationObject)},
-      {"LandUse", hexString2Int(colorLandUse)},
-      {"CityFurniture", hexString2Int(colorCityFurniture)},
-      {"Bridge", hexString2Int(colorBridge)},
-      {"BridgePart", hexString2Int(colorBridgePart)},
-      {"BridgeInstallation", hexString2Int(colorBridgeInstallation)},
-      {"BridgeConstructionElement", hexString2Int(colorBridgeConstructionElement)},
-      {"Tunnel", hexString2Int(colorTunnel)},
-      {"TunnelPart", hexString2Int(colorTunnelPart)},
-      {"TunnelInstallation", hexString2Int(colorTunnelInstallation)},
-      {"GenericCityObject", hexString2Int(colorGenericCityObject)}
+      {"Building", hexString2Int(manager.substitute_globals(colorBuilding))},
+      {"BuildingPart", hexString2Int(manager.substitute_globals(colorBuildingPart))},
+      {"BuildingInstallation", hexString2Int(manager.substitute_globals(colorBuildingInstallation))},
+      {"TINRelief", hexString2Int(manager.substitute_globals(colorTINRelief))},
+      {"Road", hexString2Int(manager.substitute_globals(colorRoad))},
+      {"Railway", hexString2Int(manager.substitute_globals(colorRailway))},
+      {"TransportSquare", hexString2Int(manager.substitute_globals(colorTransportSquare))},
+      {"WaterBody", hexString2Int(manager.substitute_globals(colorWaterBody))},
+      {"PlantCover", hexString2Int(manager.substitute_globals(colorPlantCover))},
+      {"SolitaryVegetationObject", hexString2Int(manager.substitute_globals(colorSolitaryVegetationObject))},
+      {"LandUse", hexString2Int(manager.substitute_globals(colorLandUse))},
+      {"CityFurniture", hexString2Int(manager.substitute_globals(colorCityFurniture))},
+      {"Bridge", hexString2Int(manager.substitute_globals(colorBridge))},
+      {"BridgePart", hexString2Int(manager.substitute_globals(colorBridgePart))},
+      {"BridgeInstallation", hexString2Int(manager.substitute_globals(colorBridgeInstallation))},
+      {"BridgeConstructionElement", hexString2Int(manager.substitute_globals(colorBridgeConstructionElement))},
+      {"Tunnel", hexString2Int(manager.substitute_globals(colorTunnel))},
+      {"TunnelPart", hexString2Int(manager.substitute_globals(colorTunnelPart))},
+      {"TunnelInstallation", hexString2Int(manager.substitute_globals(colorTunnelInstallation))},
+      {"GenericCityObject", hexString2Int(manager.substitute_globals(colorGenericCityObject))}
     };
     GLTFBuilder gltf(meshopt_compress, colors);
     auto total_feature_count = iData.get_total_feature_count();
