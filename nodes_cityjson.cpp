@@ -905,7 +905,7 @@ namespace geoflow::nodes::basic3d
 
           std::string selected_lod;
           if(lod_filter.count(ftype)) {
-            selected_lod = lod_filter[ftype];
+            selected_lod = manager.substitute_globals(lod_filter[ftype]);
           } else {
             float max_lodf = 0;
             std::cout<< "\navailable lod: ";
