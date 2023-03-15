@@ -723,18 +723,12 @@ namespace geoflow::nodes::basic3d
     node.mesh = 0;
     // Apply z-up to y-up transformation since our data is z-up, but gltf requires y-up (per 3D tiles specs recommendation)
     // see https://github.com/CesiumGS/3d-tiles/tree/main/specification#y-up-to-z-up
-    // matrices are in column major order
     if(relative_to_center) {
-      // also include a translation by multiplication with translation matrix. ie
-      //  | 1  0  0  0 |   | 1 0 0 c0 |
-      //  | 0  0  1  0 |   | 0 1 0 c1 |
-      //  | 0 -1  0  0 | . | 0 0 1 c2 |
-      //  | 0  0  0  1 |   | 0 0 0 1  |
       node.matrix = {
         1,  0,  0,  0,
         0,  0, -1,  0,
         0,  1,  0,  0,
-        c[0],  c[2], -c[1],  1
+        c[0],  c[1],  c[2],  1
       };
     } else {
       node.matrix = {
