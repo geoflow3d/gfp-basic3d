@@ -903,10 +903,11 @@ namespace geoflow::nodes::basic3d
             continue;
           }
 
-          std::string selected_lod;
+          std::string selected_lod="";
           if(lod_filter.count(ftype)) {
-            selected_lod = lod_filter[ftype];
-          } else {
+            selected_lod = manager.substitute_globals(lod_filter[ftype]);
+          } 
+          if(selected_lod.size()==0) {
             float max_lodf = 0;
             std::cout<< "\navailable lod: ";
             for (const auto& geom : cobject["geometry"]) {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project (CoreIO VERSION 0.2.0)
+project (CoreIO VERSION 0.3.0)
 
 if(PROJECT_IS_TOP_LEVEL)
   find_package(geoflow REQUIRED)
@@ -11,11 +11,11 @@ find_package(nlohmann_json 3.10.5 CONFIG REQUIRED)
 include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/include
 )
-
-set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
-set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
-add_subdirectory(
-  ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf
+include_directories(
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src
+)
+include_directories(
+  ${PROJECT_SOURCE_DIR}/thirdparty/tinygltf/
 )
 
 set(GF_PLUGIN_NAME ${PROJECT_NAME})
@@ -27,6 +27,12 @@ geoflow_create_plugin(
   nodes_cityjson.cpp
   nodes_cityfb.cpp
   nodes_gltf.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexgenerator.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vcacheoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/overdrawoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vfetchoptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexcodec.cpp
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vertexcodec.cpp 
 )
 
-target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json tinygltf)
+target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json)
