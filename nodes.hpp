@@ -545,6 +545,12 @@ public:
   }
 
   void process() override;
+
+  bool inputs_valid() override {  
+    return  vector_input("triangles").has_data() &&
+            vector_input("normals").has_data() &&
+            vector_input("feature_type").has_data();
+  }
 };
 
 // class Mesh2CityGMLWriterNode:public Node {

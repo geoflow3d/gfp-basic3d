@@ -751,6 +751,9 @@ namespace geoflow::nodes::basic3d
     }
 
     void add_metadata(MetadataHelper& MH, std::string metadata_class_name, size_t total_feature_count) {
+      // nothing to do when there are not attributes
+      if (MH.feature_attribute_map.size() ==0) return;
+
       // Schema definition
       tinygltf::Value::Object metadata_class_properties;
       for (const auto& [name, value_vec] : MH.feature_attribute_map) {
