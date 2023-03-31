@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project (CoreIO VERSION 0.3.3)
+project (CoreIO VERSION 0.3.4)
 
 if(PROJECT_IS_TOP_LEVEL)
   find_package(geoflow REQUIRED)
