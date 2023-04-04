@@ -653,7 +653,8 @@ namespace geoflow::nodes::basic3d
         for( auto& item : feature["CityObjects"].items() ) {
           auto& cobject = metajson["CityObjects"][item.key()];
           if(cobject["type"] == "BuildingPart") {
-            std::string optilod = feature["CityObjects"][ cobject["parents"][0] ] ["attributes"]["optimal_lod"];
+            auto& ref = cobject["parents"][0];
+            std::string optilod = feature["CityObjects"][ ref ] ["attributes"]["optimal_lod"];
             std::vector<nlohmann::json> new_geometries;
             for(auto& geom : cobject["geometry"]) {
               if (geom["lod"] == optilod) {
