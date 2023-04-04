@@ -1020,7 +1020,7 @@ namespace geoflow::nodes::basic3d
     fs::path fname = fs::path(manager.substitute_globals(filepath_));
     fs::create_directories(fname.parent_path());
     tinygltf::TinyGLTF t;
-    if(!t.WriteGltfSceneToFile(&gltf.model, fname,
+    if(!t.WriteGltfSceneToFile(&gltf.model, fname.string(),
                             embed_images_, // embedImages
                             embed_buffers_, // embedBuffers
                             pretty_print_, // pretty print
