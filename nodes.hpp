@@ -136,7 +136,7 @@ class CityJSONWriterNode : public Node {
   std::string filepath_;
   std::string CRS_ = "EPSG:7415";
   std::string identifier_attribute_ = "";
-  // std::string meta_referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
+  std::string meta_referenceSystem_ = "https://www.opengis.net/def/crs/EPSG/0/7415";
   std::string meta_identifier_      = "42";
   std::string meta_title_           = "3D BAG development";
   std::string meta_referenceDate_   = "1970-01-01";
@@ -178,7 +178,7 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(meta_poc_type_, "meta_poc_contactType", "Metadata: pointOfContact.contactType"));
     add_param(ParamString(meta_poc_website_, "meta_poc_website", "Metadata: pointOfContact.website"));
     add_param(ParamString(meta_referenceDate_, "meta_referenceDate", "Metadata: referenceDate"));
-    // add_param(ParamString(meta_referenceSystem_, "meta_referenceSystem", "Metadata: referenceSystem"));
+    add_param(ParamString(meta_referenceSystem_, "meta_referenceSystem", "Metadata: referenceSystem. NOTE: Will be overridden by CRS in case GF_PROJECT_CRS is set!"));
     add_param(ParamString(meta_title_, "meta_title", "Metadata: title"));
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamStrMap(output_attribute_names, key_options, "output_attribute_names", "Output attribute names"));
