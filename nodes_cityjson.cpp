@@ -412,7 +412,8 @@ namespace geoflow::nodes::basic3d
     std::string identifier_attribute =
       manager.substitute_globals(identifier_attribute_);
 
-    manager.set_rev_crs_transform(manager.substitute_globals(CRS_).c_str());
+    auto CRS = manager.substitute_globals(CRS_).c_str();
+    manager.set_rev_crs_transform(CRS);
 
     nlohmann::json outputJSON;
 
@@ -482,7 +483,11 @@ namespace geoflow::nodes::basic3d
     }
     metadata["referenceDate"] = manager.substitute_globals(meta_referenceDate_);
 
-    metadata["referenceSystem"] = "https://www.opengis.net/def/crs/" +manager.get_rev_crs_id_auth_name()+ "/0/" +manager.get_rev_crs_id_code();
+    metadata["referenceSystem"] = manager.substitute_globals(meta_referenceSystem_);
+    if(manager.has_process_crs()) {
+      metadata["referenceSystem"] = "https://www.opengis.net/def/crs/" +manager.get_rev_crs_id_auth_name()+ "/0/" +manager.get_rev_crs_id_code();
+    }
+    
     metadata["title"] = manager.substitute_globals(meta_title_);
 
     outputJSON["metadata"] = metadata;
