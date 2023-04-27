@@ -745,6 +745,7 @@ namespace geoflow::nodes::basic3d
     std::cout<< referenceSystem << std::endl;
     if(std::regex_search(referenceSystem, m, re)) {
       epsg_code = "EPSG:" + m[0].str();
+      std::cout<< epsg_code << std::endl;
       manager.set_fwd_crs_transform(epsg_code.c_str());
     } else {
       throw(gfException("CRS not detected"));
@@ -836,9 +837,9 @@ namespace geoflow::nodes::basic3d
                     for (const auto& i : ext_face[0]) { // get vertices of outer rings
                       ring.push_back(
                         manager.coord_transform_fwd(
-                          float((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                          float((vertices[i][1] * jscale[1])+jtranslate[1]), 
-                          float((vertices[i][2] * jscale[2])+jtranslate[2])
+                          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                          double((vertices[i][2] * jscale[2])+jtranslate[2])
                         )
                       );
                       // get the surface type
