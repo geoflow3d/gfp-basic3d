@@ -674,12 +674,33 @@ namespace geoflow::nodes::basic3d
       // std::cout << json["vertices"] << std::endl;
       vindex_offset = metajson["vertices"].size();
     }
-
-    //compute extent
+    
     // metadata
     auto& s = metajson["transform"]["scale"];
     auto& t = metajson["transform"]["translate"];
+
+    if(recompute_offset_) {
+      Box bbox;
+      for(auto& v : metajson["vertices"]) {
+        bbox.add(arr3f{
+          (float) v[0].get<int>() * s[0].get<float>(),
+          (float) v[1].get<int>() * s[1].get<float>(),
+          (float) v[2].get<int>() * s[2].get<float>()
+        });
+      }
+      auto c = bbox.center();
+      t[0] = t[0].get<float>() + c[0];
+      t[1] = t[1].get<float>() + c[1];
+      t[2] = t[2].get<float>() + c[2];
+      for(auto& v : metajson["vertices"]) {
+        v[0] = int( v[0].get<double>() - double(c[0]/s[0].get<double>()) );
+        v[1] = int( v[1].get<double>() - double(c[1]/s[1].get<double>()) );
+        v[2] = int( v[2].get<double>() - double(c[2]/s[2].get<double>()) );
+      }
+    }
+    
     Box bbox;
+    //compute extent
     for(auto& v : metajson["vertices"]) {
       bbox.add(arr3f{
         (float) v[0].get<int>() * s[0].get<float>() + t[0].get<float>(),

@@ -385,6 +385,7 @@ class CityJSONLinesWriterNode : public Node {
   std::string filepath_;
   bool prettyPrint_ = false;
   bool optimal_lod_ = false;
+  bool recompute_offset_ = false;
 
 public:
   using Node::Node;
@@ -396,6 +397,7 @@ public:
     // declare parameters
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    add_param(ParamBool(recompute_offset_, "recompute_offset", "Recompute vertex translation based on bounding box of data."));
     add_param(ParamPath(filepath_, "filepath", "File path"));
   }
 
