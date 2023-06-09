@@ -394,7 +394,7 @@ namespace geoflow::nodes::basic3d
               auto t = term->get<const DateTime&>(bp_counter);
               std::string datetime =
                 std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
-                + std::to_string(t.time.hour) + "-" + std::to_string(t.time.minute) + "-" + std::to_string(t.time.second);
+                + std::to_string(t.time.hour) + "-" + std::to_string(t.time.minute) + "-" + std::to_string(t.time.second) + "Z";
               jattributes[tname] = datetime;
             }
           }
