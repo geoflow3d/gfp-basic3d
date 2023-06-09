@@ -16,8 +16,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "nodes.hpp"
 #include <ctime>
+#include <geoflow/common.hpp>
 #include <regex>
 #include <nlohmann/json.hpp>
+#include <string>
 
 namespace geoflow::nodes::basic3d
 {
@@ -302,6 +304,15 @@ namespace geoflow::nodes::basic3d
             b_id = term->get<const std::string&>(i);
             id_from_attr = true;
           }
+        } else if (term->accepts_type(typeid(geoflow::Date))) {
+          auto& d = term->get<const geoflow::Date&>(i);
+          std::string f = std::to_string(d.year) + "-" + std::to_string(d.month) + "-" + std::to_string(d.day);
+          jattributes[tname] = f;
+        } else if (term->accepts_type(typeid(geoflow::DateTime))) {
+          auto& d = term->get<const geoflow::DateTime&>(i);
+          // std::string f = std::to_string(d.year) + "-" + std::to_string(d.month) + "-" std::to_string(d.day);
+          // TODO add time
+          // jattributes[tname] = f;
         }
       }
 
