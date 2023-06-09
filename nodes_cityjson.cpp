@@ -388,7 +388,7 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = date;
             } else if (term->accepts_type(typeid(Time))) {
               auto t = term->get<const Time&>(bp_counter);
-              std::string time = std::to_string(t.hour) + ":" + std::to_string(t.minute) + ":" + std::to_string(t.second);
+              std::string time = std::to_string(t.hour) + ":" + std::to_string(t.minute) + ":" + std::to_string(t.second) + "Z";
               jattributes[tname] = time;
             } else if (term->accepts_type(typeid(DateTime))) {
               auto t = term->get<const DateTime&>(bp_counter);
