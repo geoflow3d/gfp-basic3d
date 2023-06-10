@@ -304,15 +304,21 @@ namespace geoflow::nodes::basic3d
             b_id = term->get<const std::string&>(i);
             id_from_attr = true;
           }
-        } else if (term->accepts_type(typeid(geoflow::Date))) {
-          auto& d = term->get<const geoflow::Date&>(i);
-          std::string f = std::to_string(d.year) + "-" + std::to_string(d.month) + "-" + std::to_string(d.day);
-          jattributes[tname] = f;
-        } else if (term->accepts_type(typeid(geoflow::DateTime))) {
-          auto& d = term->get<const geoflow::DateTime&>(i);
-          // std::string f = std::to_string(d.year) + "-" + std::to_string(d.month) + "-" std::to_string(d.day);
-          // TODO add time
-          // jattributes[tname] = f;
+        // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
+        } else if (term->accepts_type(typeid(Date))) {
+          auto t = term->get<const Date&>(i);
+          std::string date = std::to_string(t.year) + "-" + std::to_string(t.month) + "-" + std::to_string(t.day);
+          jattributes[tname] = date;
+        } else if (term->accepts_type(typeid(Time))) {
+          auto t = term->get<const Time&>(i);
+          std::string time = std::to_string(t.hour) + ":" + std::to_string(t.minute) + ":" + std::to_string(t.second) + "Z";
+          jattributes[tname] = time;
+        } else if (term->accepts_type(typeid(DateTime))) {
+          auto t = term->get<const DateTime&>(i);
+          std::string datetime =
+            std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
+            + std::to_string(t.time.hour) + ":" + std::to_string(t.time.minute) + ":" + std::to_string(t.time.second) + "Z";
+          jattributes[tname] = datetime;
         }
       }
 
