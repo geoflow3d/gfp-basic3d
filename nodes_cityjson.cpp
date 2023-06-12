@@ -17,6 +17,7 @@
 #include "nodes.hpp"
 #include <ctime>
 #include <geoflow/common.hpp>
+#include <geoflow/geoflow.hpp>
 #include <regex>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -759,6 +760,27 @@ namespace geoflow::nodes::basic3d
     return parts;
   }
 
+  LinearRing CityJSONSurface2LinearRing(
+    std::vector<std::vector<int>> face, 
+    const std::vector<std::vector<double>>& vertices, 
+    const std::vector<double>& jtranslate, 
+    const std::vector<double>& jscale,
+    geoflow::NodeManager&  manager
+  ) {
+    LinearRing ring;
+    for (const auto& i : face[0]) { // get vertices of exterior ring (skipping holes)
+      ring.push_back(
+        manager.coord_transform_fwd(
+          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
+          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+          double((vertices[i][2] * jscale[2])+jtranslate[2])
+        )
+      );
+      // get the surface type
+    }
+    return ring;
+  }
+
   void CityJSONL2MeshNode::process() {
     auto& meshes = vector_output("meshes");
     auto& roofparts = vector_output("roofparts");
@@ -804,6 +826,18 @@ namespace geoflow::nodes::basic3d
     }
 
     if (bag3d_buildings_mode_) {
+      auto& lod0_2d = vector_output("lod0_2d");
+      auto& roofparts_lr = vector_output("roofparts_lr");
+      
+      auto& roofparts_lr_attributes = poly_output("roofparts_lr_attributes");      
+      roofparts_lr_attributes.add_vector("identificatie", typeid(std::string));
+      roofparts_lr_attributes.add_vector("pand_deel_id", typeid(int));
+      roofparts_lr_attributes.add_vector("dak_deel_id", typeid(int));
+      
+      auto& meshes_attributes = poly_output("meshes_attributes");
+      meshes_attributes.add_vector("identificatie", typeid(std::string));
+      meshes_attributes.add_vector("pand_deel_id", typeid(int));
+
       for (size_t i=0; i< features_inp.size(); ++i) {
         // std::cout<< "FI:" << i<< std::endl;
         auto& featurestr = features_inp.get<std::string>(i);
@@ -822,6 +856,7 @@ namespace geoflow::nodes::basic3d
         if(feature["type"] != "CityJSONFeature") {
           throw(gfException("input is not CityJSONFeature"));
         }
+        std::vector<std::vector<double>> vertices = feature["vertices"];
         size_t n_attr=0, n_mesh=0;
         std::string optimal_lod_value = optimal_lod_value_;
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
@@ -831,7 +866,8 @@ namespace geoflow::nodes::basic3d
           if (cobject["type"] == "Building") {
             if (optimal_lod_) optimal_lod_value = cobject["attributes"]["optimal_lod"];
 
-            size_t n_children = cobject["children"].size();
+            size_t n_children = 1;
+            if (bag3d_attr_per_part_) n_children = cobject["children"].size();
             n_attr += n_children;
             // get_attributes
             for(auto& [jname, jval] : cobject["attributes"].items()) {
@@ -849,16 +885,26 @@ namespace geoflow::nodes::basic3d
                   attributes.sub_terminal(jname).push_back(jval.get<float>());
               }
             }
+            // get lod0 polygon
+            auto& geom = cobject["geometry"][0];
+            LinearRing ring;
+            if(geom["type"] == "MultiSurface" && geom["lod"] == "0") {
+              ring = CityJSONSurface2LinearRing( geom["boundaries"][0], vertices, jtranslate, jscale, manager );
+              lod0_2d.push_back(ring);
+            } else {
+              throw(gfException("Building geometry has unexprected form"));
+            }
           }
         }
-
-        std::vector<std::vector<double>> vertices = feature["vertices"];
         
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
           // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
 
           if (cobject["type"] == "BuildingPart") {
+            auto id_vec = split_string_to_vec(id, "-");
+            std::string identificatie = id_vec[0];
+            int part_id = std::stoi(id_vec[1]);
             for (const auto& geom : cobject["geometry"]) {
 
               if(geom["lod"].get<std::string>() == optimal_lod_value) {
@@ -870,6 +916,7 @@ namespace geoflow::nodes::basic3d
                   Mesh roofparts_;
                   // get faces of exterior shell
                   unsigned face_i=0;
+                  int roofpart_i=0;
                   for (const auto& ext_face : geom["boundaries"][0]) {
                     LinearRing ring;
                     for (const auto& i : ext_face[0]) { // get vertices of outer rings
@@ -887,10 +934,16 @@ namespace geoflow::nodes::basic3d
                     auto& stype = geom["semantics"]["surfaces"][ sindex ];
                     if (stype["type"].get<std::string>() == "RoofSurface") {
                       roofparts_.push_polygon(ring, 2);
+                        roofparts_lr.push_back(ring);
+                        roofparts_lr_attributes.sub_terminal("identificatie").push_back(identificatie);
+                        roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
+                        roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
                     }
                   }
                   roofparts.push_back(roofparts_);
                   meshes.push_back(mesh);
+                  meshes_attributes.sub_terminal("identificatie").push_back(identificatie);
+                  meshes_attributes.sub_terminal("pand_deel_id").push_back(part_id);
                   n_mesh++;
                 }
               }
