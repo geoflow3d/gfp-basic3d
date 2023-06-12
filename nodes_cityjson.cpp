@@ -394,6 +394,7 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = term->get<const int&>(bp_counter);
             } else if (term->accepts_type(typeid(std::string))) {
               jattributes[tname] = term->get<const std::string&>(bp_counter);
+            }
           }
           ++bp_counter;
           buildingPart["attributes"] = jattributes;
