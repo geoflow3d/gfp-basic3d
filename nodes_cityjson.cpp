@@ -275,9 +275,9 @@ namespace geoflow::nodes::basic3d
       for (auto& term : attributes.sub_terminals()) {
         auto tname = term->get_full_name();
         if (!term->get_data_vec()[i].has_value()) {
-            nlohmann::json j_null;
-            jattributes[tname] = j_null;
-            continue;
+          nlohmann::json j_null;
+          jattributes[tname] = j_null;
+          continue;
         }
 
         //see if we need to rename this attribute
@@ -379,8 +379,13 @@ namespace geoflow::nodes::basic3d
           //attrubutes
           auto jattributes = nlohmann::json::object();
           for (auto& term : part_attributes.sub_terminals()) {
-            if (!term->get_data_vec()[i].has_value()) continue;
             auto tname = term->get_full_name();
+            if (!term->get_data_vec()[i].has_value()) {
+              nlohmann::json j_null;
+              jattributes[tname] = j_null;
+              continue;
+            }
+
             if (term->accepts_type(typeid(bool))) {
               jattributes[tname] = term->get<const bool&>(bp_counter);
             } else if (term->accepts_type(typeid(float))) {
@@ -389,23 +394,6 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = term->get<const int&>(bp_counter);
             } else if (term->accepts_type(typeid(std::string))) {
               jattributes[tname] = term->get<const std::string&>(bp_counter);
-
-              // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
-            } else if (term->accepts_type(typeid(Date))) {
-              auto t = term->get<const Date&>(bp_counter);
-              std::string date = std::to_string(t.year) + "-" + std::to_string(t.month) + "-" + std::to_string(t.day);
-              jattributes[tname] = date;
-            } else if (term->accepts_type(typeid(Time))) {
-              auto t = term->get<const Time&>(bp_counter);
-              std::string time = std::to_string(t.hour) + ":" + std::to_string(t.minute) + ":" + std::to_string(t.second) + "Z";
-              jattributes[tname] = time;
-            } else if (term->accepts_type(typeid(DateTime))) {
-              auto t = term->get<const DateTime&>(bp_counter);
-              std::string datetime =
-                std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
-                + std::to_string(t.time.hour) + ":" + std::to_string(t.time.minute) + ":" + std::to_string(t.time.second) + "Z";
-              jattributes[tname] = datetime;
-            }
           }
           ++bp_counter;
           buildingPart["attributes"] = jattributes;
