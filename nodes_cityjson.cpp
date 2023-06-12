@@ -273,8 +273,12 @@ namespace geoflow::nodes::basic3d
       bool id_from_attr = false;
       auto jattributes = nlohmann::json::object();
       for (auto& term : attributes.sub_terminals()) {
-        if (!term->get_data_vec()[i].has_value()) continue;
         auto tname = term->get_full_name();
+        if (!term->get_data_vec()[i].has_value()) {
+            nlohmann::json j_null;
+            jattributes[tname] = j_null;
+            continue;
+        }
 
         //see if we need to rename this attribute
         auto search = output_attribute_names.find(tname);
