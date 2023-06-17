@@ -875,6 +875,22 @@ namespace geoflow::nodes::basic3d
                 }
                 for (size_t i=0; i<n_children; ++i)
                   attributes.sub_terminal(jname).push_back(jval.get<float>());
+              } else if (jval.is_boolean()) {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(bool));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  attributes.sub_terminal(jname).push_back(jval.get<bool>());
+              } else {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(std::string));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  if(jval.is_null()) {
+                    attributes.sub_terminal(jname).push_back_any(std::any());
+                  } else {
+                    attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+                  }
               }
             }
             // get lod0 polygon
