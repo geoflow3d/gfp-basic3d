@@ -385,6 +385,7 @@ class CityJSONLinesWriterNode : public Node {
   std::string filepath_;
   bool prettyPrint_ = false;
   bool optimal_lod_ = false;
+  bool recompute_offset_ = false;
 
 public:
   using Node::Node;
@@ -396,6 +397,7 @@ public:
     // declare parameters
     add_param(ParamBool(prettyPrint_, "prettyPrint", "Pretty print CityJSON output"));
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    add_param(ParamBool(recompute_offset_, "recompute_offset", "Recompute vertex translation based on bounding box of data."));
     add_param(ParamPath(filepath_, "filepath", "File path"));
   }
 
@@ -429,6 +431,7 @@ class CityJSONL2MeshNode : public Node {
   // StrMap feature_type_filter;
   // parameter variables
   bool bag3d_buildings_mode_ = true;
+  bool bag3d_attr_per_part_ = true;
   bool optimal_lod_ = true;
   std::string cotypes="";
   std::string atribute_spec=""; // format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name
@@ -445,9 +448,21 @@ public:
     add_vector_output("roofparts", typeid(Mesh));
     add_vector_output("feature_type", typeid(std::string));
     add_poly_output("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    // roofpart ouputs for 3dbag mode
+    add_vector_output("lod0_2d", typeid(LinearRing)); // Polygon
+    // add_vector_output("lod0_2d_attributes", typeid({typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)}));
+    add_vector_output("roofparts_lr", typeid(LinearRing)); // Polygon
+    add_poly_output("roofparts_lr_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    add_poly_output("meshes_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    // add_vector_output("lod13_2d_roofparts", typeid(LinearRing)); // Polygon
+    // add_poly_output("lod13_2d_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    // add_vector_output("lod22_2d_roofparts", typeid(LinearRing)); // Polygon
+    // add_poly_output("lod22_2d_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
+    
 
     // declare parameters
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
+    add_param(ParamBool(bag3d_attr_per_part_, "bag3d_attr_per_part", "push attributes for every BuildingPart (3dbag mode only)"));
     add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     add_param(ParamString(cotypes, "cotypes", "Output only these feature types, comma separated"));
     add_param(ParamText(atribute_spec, "atribute_spec", "Attribute names and types to output. Format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name"));

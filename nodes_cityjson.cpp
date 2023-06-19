@@ -16,8 +16,11 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "nodes.hpp"
 #include <ctime>
+#include <geoflow/common.hpp>
+#include <geoflow/geoflow.hpp>
 #include <regex>
 #include <nlohmann/json.hpp>
+#include <string>
 
 namespace geoflow::nodes::basic3d
 {
@@ -270,7 +273,6 @@ namespace geoflow::nodes::basic3d
       bool id_from_attr = false;
       auto jattributes = nlohmann::json::object();
       for (auto& term : attributes.sub_terminals()) {
-        if (!term->get_data_vec()[i].has_value()) continue;
         auto tname = term->get_full_name();
 
         //see if we need to rename this attribute
@@ -281,6 +283,12 @@ namespace geoflow::nodes::basic3d
             tname = search->second;
         } else if (only_output_renamed) {
           continue;    
+        }
+
+        if (!term->get_data_vec()[i].has_value()) {
+          nlohmann::json j_null;
+          jattributes[tname] = j_null;
+          continue;
         }
 
         if (term->accepts_type(typeid(bool))) {
@@ -302,6 +310,19 @@ namespace geoflow::nodes::basic3d
             b_id = term->get<const std::string&>(i);
             id_from_attr = true;
           }
+        // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
+        } else if (term->accepts_type(typeid(Date))) {
+          auto t = term->get<const Date&>(i);
+          std::string date = t.format_to_ietf();
+          jattributes[tname] = date;
+        } else if (term->accepts_type(typeid(Time))) {
+          auto t = term->get<const Time&>(i);
+          std::string time = std::to_string(t.hour) + ":" + std::to_string(t.minute) + ":" + std::to_string(t.second) + "Z";
+          jattributes[tname] = time;
+        } else if (term->accepts_type(typeid(DateTime))) {
+          auto t = term->get<const DateTime&>(i);
+          std::string datetime = t.format_to_ietf();
+          jattributes[tname] = datetime;
         }
       }
 
@@ -359,8 +380,13 @@ namespace geoflow::nodes::basic3d
           //attrubutes
           auto jattributes = nlohmann::json::object();
           for (auto& term : part_attributes.sub_terminals()) {
-            if (!term->get_data_vec()[i].has_value()) continue;
             auto tname = term->get_full_name();
+            if (!term->get_data_vec()[i].has_value()) {
+              nlohmann::json j_null;
+              jattributes[tname] = j_null;
+              continue;
+            }
+
             if (term->accepts_type(typeid(bool))) {
               jattributes[tname] = term->get<const bool&>(bp_counter);
             } else if (term->accepts_type(typeid(float))) {
@@ -369,22 +395,6 @@ namespace geoflow::nodes::basic3d
               jattributes[tname] = term->get<const int&>(bp_counter);
             } else if (term->accepts_type(typeid(std::string))) {
               jattributes[tname] = term->get<const std::string&>(bp_counter);
-
-              // for date/time we follow https://en.wikipedia.org/wiki/ISO_8601
-            } else if (term->accepts_type(typeid(Date))) {
-              auto t = term->get<const Date&>(bp_counter);
-              std::string date = std::to_string(t.year) + "-" + std::to_string(t.month) + "-" + std::to_string(t.day);
-              jattributes[tname] = date;
-            } else if (term->accepts_type(typeid(Time))) {
-              auto t = term->get<const Time&>(bp_counter);
-              std::string time = std::to_string(t.hour) + "-" + std::to_string(t.minute) + "-" + std::to_string(t.second);
-              jattributes[tname] = time;
-            } else if (term->accepts_type(typeid(DateTime))) {
-              auto t = term->get<const DateTime&>(bp_counter);
-              std::string datetime =
-                std::to_string(t.date.year) + "-" + std::to_string(t.date.month) + "-" + std::to_string(t.date.day) + "T"
-                + std::to_string(t.time.hour) + "-" + std::to_string(t.time.minute) + "-" + std::to_string(t.time.second);
-              jattributes[tname] = datetime;
             }
           }
           ++bp_counter;
@@ -675,12 +685,33 @@ namespace geoflow::nodes::basic3d
       // std::cout << json["vertices"] << std::endl;
       vindex_offset = metajson["vertices"].size();
     }
-
-    //compute extent
+    
     // metadata
     auto& s = metajson["transform"]["scale"];
     auto& t = metajson["transform"]["translate"];
+
+    if(recompute_offset_) {
+      Box bbox;
+      for(auto& v : metajson["vertices"]) {
+        bbox.add(arr3f{
+          (float) v[0].get<int>() * s[0].get<float>(),
+          (float) v[1].get<int>() * s[1].get<float>(),
+          (float) v[2].get<int>() * s[2].get<float>()
+        });
+      }
+      auto c = bbox.center();
+      t[0] = t[0].get<float>() + c[0];
+      t[1] = t[1].get<float>() + c[1];
+      t[2] = t[2].get<float>() + c[2];
+      for(auto& v : metajson["vertices"]) {
+        v[0] = int( v[0].get<double>() - double(c[0]/s[0].get<double>()) );
+        v[1] = int( v[1].get<double>() - double(c[1]/s[1].get<double>()) );
+        v[2] = int( v[2].get<double>() - double(c[2]/s[2].get<double>()) );
+      }
+    }
+    
     Box bbox;
+    //compute extent
     for(auto& v : metajson["vertices"]) {
       bbox.add(arr3f{
         (float) v[0].get<int>() * s[0].get<float>() + t[0].get<float>(),
@@ -722,6 +753,27 @@ namespace geoflow::nodes::basic3d
     return parts;
   }
 
+  LinearRing CityJSONSurface2LinearRing(
+    std::vector<std::vector<int>> face, 
+    const std::vector<std::vector<double>>& vertices, 
+    const std::vector<double>& jtranslate, 
+    const std::vector<double>& jscale,
+    geoflow::NodeManager&  manager
+  ) {
+    LinearRing ring;
+    for (const auto& i : face[0]) { // get vertices of exterior ring (skipping holes)
+      ring.push_back(
+        manager.coord_transform_fwd(
+          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
+          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+          double((vertices[i][2] * jscale[2])+jtranslate[2])
+        )
+      );
+      // get the surface type
+    }
+    return ring;
+  }
+
   void CityJSONL2MeshNode::process() {
     auto& meshes = vector_output("meshes");
     auto& roofparts = vector_output("roofparts");
@@ -746,6 +798,7 @@ namespace geoflow::nodes::basic3d
     std::cout<< referenceSystem << std::endl;
     if(std::regex_search(referenceSystem, m, re)) {
       epsg_code = "EPSG:" + m[0].str();
+      std::cout<< epsg_code << std::endl;
       manager.set_fwd_crs_transform(epsg_code.c_str());
     } else {
       throw(gfException("CRS not detected"));
@@ -766,6 +819,18 @@ namespace geoflow::nodes::basic3d
     }
 
     if (bag3d_buildings_mode_) {
+      auto& lod0_2d = vector_output("lod0_2d");
+      auto& roofparts_lr = vector_output("roofparts_lr");
+      
+      auto& roofparts_lr_attributes = poly_output("roofparts_lr_attributes");      
+      roofparts_lr_attributes.add_vector("identificatie", typeid(std::string));
+      roofparts_lr_attributes.add_vector("pand_deel_id", typeid(int));
+      roofparts_lr_attributes.add_vector("dak_deel_id", typeid(int));
+      
+      auto& meshes_attributes = poly_output("meshes_attributes");
+      meshes_attributes.add_vector("identificatie", typeid(std::string));
+      meshes_attributes.add_vector("pand_deel_id", typeid(int));
+
       for (size_t i=0; i< features_inp.size(); ++i) {
         // std::cout<< "FI:" << i<< std::endl;
         auto& featurestr = features_inp.get<std::string>(i);
@@ -784,6 +849,7 @@ namespace geoflow::nodes::basic3d
         if(feature["type"] != "CityJSONFeature") {
           throw(gfException("input is not CityJSONFeature"));
         }
+        std::vector<std::vector<double>> vertices = feature["vertices"];
         size_t n_attr=0, n_mesh=0;
         std::string optimal_lod_value = optimal_lod_value_;
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
@@ -793,7 +859,8 @@ namespace geoflow::nodes::basic3d
           if (cobject["type"] == "Building") {
             if (optimal_lod_) optimal_lod_value = cobject["attributes"]["optimal_lod"];
 
-            size_t n_children = cobject["children"].size();
+            size_t n_children = 1;
+            if (bag3d_attr_per_part_) n_children = cobject["children"].size();
             n_attr += n_children;
             // get_attributes
             for(auto& [jname, jval] : cobject["attributes"].items()) {
@@ -809,18 +876,44 @@ namespace geoflow::nodes::basic3d
                 }
                 for (size_t i=0; i<n_children; ++i)
                   attributes.sub_terminal(jname).push_back(jval.get<float>());
+              } else if (jval.is_boolean()) {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(bool));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  attributes.sub_terminal(jname).push_back(jval.get<bool>());
+              } else {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(std::string));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  if(jval.is_null()) {
+                    attributes.sub_terminal(jname).push_back_any(std::any());
+                  } else {
+                    attributes.sub_terminal(jname).push_back(jval.get<std::string>());
+                  }
               }
+            }
+            // get lod0 polygon
+            auto& geom = cobject["geometry"][0];
+            LinearRing ring;
+            if(geom["type"] == "MultiSurface" && geom["lod"] == "0") {
+              ring = CityJSONSurface2LinearRing( geom["boundaries"][0], vertices, jtranslate, jscale, manager );
+              lod0_2d.push_back(ring);
+            } else {
+              throw(gfException("Building geometry has unexprected form"));
             }
           }
         }
-
-        std::vector<std::vector<double>> vertices = feature["vertices"];
         
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
           // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
 
           if (cobject["type"] == "BuildingPart") {
+            auto id_vec = split_string_to_vec(id, "-");
+            std::string identificatie = id_vec[0];
+            int part_id = std::stoi(id_vec[1]);
             for (const auto& geom : cobject["geometry"]) {
 
               if(geom["lod"].get<std::string>() == optimal_lod_value) {
@@ -832,14 +925,15 @@ namespace geoflow::nodes::basic3d
                   Mesh roofparts_;
                   // get faces of exterior shell
                   unsigned face_i=0;
+                  int roofpart_i=0;
                   for (const auto& ext_face : geom["boundaries"][0]) {
                     LinearRing ring;
                     for (const auto& i : ext_face[0]) { // get vertices of outer rings
                       ring.push_back(
                         manager.coord_transform_fwd(
-                          float((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                          float((vertices[i][1] * jscale[1])+jtranslate[1]), 
-                          float((vertices[i][2] * jscale[2])+jtranslate[2])
+                          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
+                          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                          double((vertices[i][2] * jscale[2])+jtranslate[2])
                         )
                       );
                       // get the surface type
@@ -849,10 +943,16 @@ namespace geoflow::nodes::basic3d
                     auto& stype = geom["semantics"]["surfaces"][ sindex ];
                     if (stype["type"].get<std::string>() == "RoofSurface") {
                       roofparts_.push_polygon(ring, 2);
+                        roofparts_lr.push_back(ring);
+                        roofparts_lr_attributes.sub_terminal("identificatie").push_back(identificatie);
+                        roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
+                        roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
                     }
                   }
                   roofparts.push_back(roofparts_);
                   meshes.push_back(mesh);
+                  meshes_attributes.sub_terminal("identificatie").push_back(identificatie);
+                  meshes_attributes.sub_terminal("pand_deel_id").push_back(part_id);
                   n_mesh++;
                 }
               }
