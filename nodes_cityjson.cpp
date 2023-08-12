@@ -349,13 +349,13 @@ namespace geoflow::nodes::basic3d
       Box building_bbox;
       if (has_solids) {
         MeshMap meshmap;
-        if (export_lod12)
-          meshmap = multisolids_lod12.get<MeshMap>(i);
-        else if (export_lod13)
-          meshmap = multisolids_lod13.get<MeshMap>(i);
-        else if (export_lod22)
+        if (export_lod22) {
           meshmap = multisolids_lod22.get<MeshMap>(i);
-
+        } else if (export_lod13) {
+          meshmap = multisolids_lod13.get<MeshMap>(i);
+        } else if (export_lod12) {
+          meshmap = multisolids_lod12.get<MeshMap>(i);
+        }
         for ( const auto& [sid, solid_lodx] : meshmap ) {
           auto buildingPart = nlohmann::json::object();
           auto bp_id = b_id + "-" + std::to_string(sid);
@@ -364,13 +364,22 @@ namespace geoflow::nodes::basic3d
           buildingPart["type"] = "BuildingPart";
           buildingPart["parents"] = {b_id};
 
+          // Use try-except here for some rare cases when the sid's between different lod's do not line up (eg for very fragmented buildings from poor dim pointcloud).
           if (export_lod12) {
-            building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid), node_manager);
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map, node_manager));
+            try {
+              building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod12.get<MeshMap>(i).at(sid), node_manager);
+              buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod12.get<MeshMap>(i).at(sid), "1.2", vertex_map, node_manager));
+            } catch (const std::exception& e) {
+              std::cout << "skipping lod 12 building part\n";
+            }
           }
           if (export_lod13) {
-            building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid), node_manager);
-            buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map, node_manager));
+            try {
+              building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod13.get<MeshMap>(i).at(sid), node_manager);
+              buildingPart["geometry"].push_back(CityJSON::mesh2jSolid(multisolids_lod13.get<MeshMap>(i).at(sid), "1.3", vertex_map, node_manager));
+            } catch (const std::exception& e) {
+              std::cout << "skipping lod 13 building part\n";
+            }
           }
           if (export_lod22) {
             building_bbox = add_vertices_mesh(vertex_map, vertex_vec, vertex_set, multisolids_lod22.get<MeshMap>(i).at(sid), node_manager);
