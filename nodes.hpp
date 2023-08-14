@@ -511,6 +511,7 @@ class GLTFWriterNode : public Node {
   std::string colorTunnelPart = "#4F4A6A";
   std::string colorTunnelInstallation = "#4F4A6A";
   std::string colorGenericCityObject = "#4F4A6A";
+  std::string colorOtherConstruction = "#4F4A6A";
 
 public:
   using Node::Node;
@@ -554,6 +555,7 @@ public:
     add_param(ParamString(colorTunnelPart, "colorTunnelPart", "hex color value for feature type TunnelPart"));
     add_param(ParamString(colorTunnelInstallation, "colorTunnelInstallation", "hex color value for feature type TunnelInstallation"));
     add_param(ParamString(colorGenericCityObject, "colorGenericCityObject", "hex color value for feature type GenericCityObject"));
+    add_param(ParamString(colorOtherConstruction, "colorOtherConstruction", "hex color value for feature type OtherConstruction"));
     
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));

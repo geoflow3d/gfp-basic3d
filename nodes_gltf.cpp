@@ -996,7 +996,8 @@ namespace geoflow::nodes::basic3d
       {"Tunnel", hexString2Int(manager.substitute_globals(colorTunnel))},
       {"TunnelPart", hexString2Int(manager.substitute_globals(colorTunnelPart))},
       {"TunnelInstallation", hexString2Int(manager.substitute_globals(colorTunnelInstallation))},
-      {"GenericCityObject", hexString2Int(manager.substitute_globals(colorGenericCityObject))}
+      {"GenericCityObject", hexString2Int(manager.substitute_globals(colorGenericCityObject))},
+      {"OtherConstruction", hexString2Int(manager.substitute_globals(colorOtherConstruction))}
     };
     GLTFBuilder gltf(meshopt_compress, colors);
     auto total_feature_count = iData.get_total_feature_count();
