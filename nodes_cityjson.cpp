@@ -873,7 +873,16 @@ namespace geoflow::nodes::basic3d
             n_attr += n_children;
             // get_attributes
             for(auto& [jname, jval] : cobject["attributes"].items()) {
-              if(jval.is_string()) {
+              if (jname == "b3_bag_bag_overlap") {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(float));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  if (jval.is_null())
+                    attributes.sub_terminal(jname).push_back(float(0));
+                  else
+                    attributes.sub_terminal(jname).push_back(jval.get<float>());
+              } else if(jval.is_string()) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(std::string));
                 }
