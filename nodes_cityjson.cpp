@@ -919,7 +919,7 @@ namespace geoflow::nodes::basic3d
               ring = CityJSONSurface2LinearRing( geom["boundaries"][0], vertices, jtranslate, jscale, manager );
               lod0_2d.push_back(ring);
             } else {
-              throw(gfException("Building geometry has unexprected form"));
+              throw(gfException("Building geometry has unexpected form"));
             }
           }
         }
@@ -932,6 +932,7 @@ namespace geoflow::nodes::basic3d
             auto id_vec = split_string_to_vec(id, "-");
             std::string identificatie = id_vec[0];
             int part_id = std::stoi(id_vec[1]);
+            bool optimal_lod_geometry_found = false;
             for (const auto& geom : cobject["geometry"]) {
 
               if(geom["lod"].get<std::string>() == optimal_lod_value) {
@@ -939,6 +940,7 @@ namespace geoflow::nodes::basic3d
                 if (
                   geom["type"] == "Solid"// only care about solids
                 ) {
+                  optimal_lod_geometry_found = true;
                   Mesh mesh;
                   Mesh roofparts_;
                   // get faces of exterior shell
@@ -961,10 +963,10 @@ namespace geoflow::nodes::basic3d
                     auto& stype = geom["semantics"]["surfaces"][ sindex ];
                     if (stype["type"].get<std::string>() == "RoofSurface") {
                       roofparts_.push_polygon(ring, 2);
-                        roofparts_lr.push_back(ring);
-                        roofparts_lr_attributes.sub_terminal("identificatie").push_back(identificatie);
-                        roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
-                        roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
+                      roofparts_lr.push_back(ring);
+                      roofparts_lr_attributes.sub_terminal("identificatie").push_back(identificatie);
+                      roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
+                      roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
                     }
                   }
                   roofparts.push_back(roofparts_);
@@ -974,6 +976,12 @@ namespace geoflow::nodes::basic3d
                   n_mesh++;
                 }
               }
+            }
+            //
+            if (!optimal_lod_geometry_found) {
+              meshes.push_back(Mesh());
+              meshes_attributes.sub_terminal("identificatie").push_back(identificatie);
+              meshes_attributes.sub_terminal("pand_deel_id").push_back(part_id);
             }
           }
         }
