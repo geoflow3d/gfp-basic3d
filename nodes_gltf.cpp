@@ -75,9 +75,11 @@ namespace geoflow::nodes::basic3d
         {
           const auto& n_ = normals[i];
           // normal is 0 for a degenerate triangle. skip such points
-          if(!std::isnormal(n_[0]) && !std::isnormal(n_[1]) && !std::isnormal(n_[2])) {
-            break;
-          } 
+          // if(!std::isnormal(n_[0]) && !std::isnormal(n_[1]) && !std::isnormal(n_[2])) {
+          //   std::cout << "n = " << n_[0] << " " << n_[1] << " " << n_[2] << "\n";
+          //   std::cout << "skipping point\n";
+          //   break;
+          // } 
           i++;
 
           auto p = manager.coord_transform_rev(p_);
@@ -103,7 +105,8 @@ namespace geoflow::nodes::basic3d
             n[2]/l,
             feature_id_cnt
           });
-          ++total_count;     }
+          ++total_count;
+        }
       }
       feature_id_cnt += 1.0;
       if (ftype_counts.count(feature_type)) {
