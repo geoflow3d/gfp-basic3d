@@ -437,7 +437,7 @@ namespace geoflow::nodes::basic3d
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSON";
-    outputJSON["version"] = "1.1";
+    outputJSON["version"] = "2.0";
     outputJSON["CityObjects"] = nlohmann::json::object();
 
     std::vector<arr3d> vertex_vec;
@@ -483,14 +483,15 @@ namespace geoflow::nodes::basic3d
 
     // metadata.datasetPointOfContact - only add it if at least one of the parameters is filled
     auto contact = nlohmann::json::object();
-    bool poc_allempty = true;
-    if (std::string val = manager.substitute_globals(meta_poc_contactName_); !val.empty()) { contact["contactName"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_phone_); !val.empty()) { contact["phone"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_email_); !val.empty()) { contact["emailAddress"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; poc_allempty = false; }
-    if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; poc_allempty = false; }
-    if (!poc_allempty) { metadata["pointOfContact"] = contact; }
+
+    if (std::string val = manager.substitute_globals(meta_poc_contactName_); !val.empty()) { contact["contactName"] = val; }
+    if (std::string val = manager.substitute_globals(meta_poc_email_); !val.empty()) { contact["emailAddress"] = val; }
+    if (std::string val = manager.substitute_globals(meta_poc_phone_); !val.empty()) { contact["phone"] = val; }
+    // if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; }
+    if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; }
+    if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; }
+    
+    metadata["pointOfContact"] = contact;
 
     if (std::string val = manager.substitute_globals(meta_referenceDate_); !val.empty()) {
       // find current date if none provided
@@ -584,7 +585,7 @@ namespace geoflow::nodes::basic3d
     nlohmann::json outputJSON;
 
     outputJSON["type"] = "CityJSON";
-    outputJSON["version"] = "1.1";
+    outputJSON["version"] = "2.0";
     outputJSON["CityObjects"] = nlohmann::json::object();
     outputJSON["vertices"] = nlohmann::json::array();
 

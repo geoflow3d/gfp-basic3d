@@ -141,9 +141,9 @@ class CityJSONWriterNode : public Node {
   std::string meta_title_           = "3D BAG development";
   std::string meta_referenceDate_   = "1970-01-01";
   std::string meta_poc_contactName_;
-  std::string meta_poc_phone_;
-  std::string meta_poc_address_;
   std::string meta_poc_email_;
+  std::string meta_poc_phone_;
+  // std::string meta_poc_address_;
   std::string meta_poc_type_;
   std::string meta_poc_website_;
 
@@ -173,7 +173,6 @@ class CityJSONWriterNode : public Node {
     add_param(ParamString(meta_poc_contactName_, "meta_poc_contactName", "Metadata: pointOfContact.contactName"));
     add_param(ParamString(
       meta_poc_phone_, "meta_poc_phone", "Metadata: pointOfContact.phone"));
-    add_param(ParamString(meta_poc_address_, "meta_poc_address", "Metadata: pointOfContact.address"));
     add_param(ParamString(meta_poc_email_, "meta_poc_emailAddress", "Metadata: pointOfContact.emailAddress"));
     add_param(ParamString(meta_poc_type_, "meta_poc_contactType", "Metadata: pointOfContact.contactType"));
     add_param(ParamString(meta_poc_website_, "meta_poc_website", "Metadata: pointOfContact.website"));
