@@ -958,7 +958,6 @@ namespace geoflow::nodes::basic3d
                       );
                       // get the surface type
                     }
-                    mesh.push_polygon(ring, 2);
                     int sindex = geom["semantics"]["values"][0][face_i++].get<int>();
                     auto& stype = geom["semantics"]["surfaces"][ sindex ];
                     if (stype["type"].get<std::string>() == "RoofSurface") {
@@ -968,6 +967,8 @@ namespace geoflow::nodes::basic3d
                       roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
                       roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
                     }
+
+                    mesh.push_polygon(ring, st_map[stype["type"].get<std::string>()]);
                   }
                   roofparts.push_back(roofparts_);
                   meshes.push_back(mesh);
