@@ -26,8 +26,8 @@ namespace geoflow::nodes::basic3d
 {
   static std::unordered_map <std::string, int> st_map = 
   {
-    {"RoofSurface", 0},
-    {"GroundSurface",1},
+    {"GroundSurface", 0},
+    {"RoofSurface",1},
     {"WallSurface", 2},
     {"ClosureSurface", 3},
     {"OuterCeilingSurface", 4},
