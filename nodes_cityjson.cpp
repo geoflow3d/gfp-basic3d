@@ -917,9 +917,9 @@ namespace geoflow::nodes::basic3d
               }
             }
             // kwaliteitsindicator
-            std::cout << "b3_bag_bag_overlap: " << cobject["attributes"].contains("b3_bag_bag_overlap") << std::endl;
-            std::cout << "b3_val3dity_lod22: " << cobject["attributes"].contains("b3_val3dity_lod22") << std::endl;
-            std::cout << "b3_pw_selectie_reden: " << cobject["attributes"].contains("b3_pw_selectie_reden") << std::endl;
+            // std::cout << "b3_bag_bag_overlap: " << cobject["attributes"].contains("b3_bag_bag_overlap") << std::endl;
+            // std::cout << "b3_val3dity_lod22: " << cobject["attributes"].contains("b3_val3dity_lod22") << std::endl;
+            // std::cout << "b3_pw_selectie_reden: " << cobject["attributes"].contains("b3_pw_selectie_reden") << std::endl;
             if (
                cobject["attributes"].contains("b3_bag_bag_overlap") &&
                cobject["attributes"].contains("b3_val3dity_lod22") &&
@@ -935,9 +935,9 @@ namespace geoflow::nodes::basic3d
                       (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
                       (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED") 
                     );
-                attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
+                for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
             } else {
-              attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
+              for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
             }
             
             // get lod0 polygon
