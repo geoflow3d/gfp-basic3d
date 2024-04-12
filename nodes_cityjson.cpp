@@ -958,8 +958,8 @@ namespace geoflow::nodes::basic3d
 
           if (cobject["type"] == "BuildingPart") {
             auto id_vec = split_string_to_vec(id, "-");
-            std::string identificatie = id_vec[0];
-            int part_id = std::stoi(id_vec[1]);
+            std::string identificatie = id_vec.front();
+            int part_id = std::stoi(id_vec.back());
             bool optimal_lod_geometry_found = false;
             for (const auto& geom : cobject["geometry"]) {
 
