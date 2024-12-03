@@ -217,7 +217,7 @@ void VecOBJWriterNode::process()
     {
       if(!triangles.get_data_vec()[j].has_value()) continue;
       if (use_id_from_attribute) {
-        ofs << "o " << id_term->get<const std::string>(j) << "\n";
+        ofs << "o " << id_term->get<const std::string>(j) << "-" << j << "\n";
       } else {
         ofs << "o " << j << "\n";
       }
