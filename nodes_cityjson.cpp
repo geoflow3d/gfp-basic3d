@@ -887,7 +887,7 @@ namespace geoflow::nodes::basic3d
                     attributes.sub_terminal(jname).push_back(float(0));
                   else
                     attributes.sub_terminal(jname).push_back(jval.get<float>());
-              } else if (jname == "b3_bouwlagen") {
+              } else if (jname == "b3_bouwlagen" || jname == "b3_h_dak_min" || jname == "b3_h_dak_max" || jname == "b3_h_dak_50p") {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(float));
                 }
@@ -896,6 +896,15 @@ namespace geoflow::nodes::basic3d
                     attributes.sub_terminal(jname).push_back_any(std::any());
                   else
                     attributes.sub_terminal(jname).push_back(jval.get<float>());
+              } else if (jname == "b3_n_vlakken") {
+                if (!attributes.has_sub_terminal(jname)) {
+                  attributes.add_vector(jname, typeid(int));
+                }
+                for (size_t i=0; i<n_children; ++i)
+                  if (jval.is_null())
+                    attributes.sub_terminal(jname).push_back_any(std::any());
+                  else
+                    attributes.sub_terminal(jname).push_back(jval.get<int>());
               } else if(jval.is_string()) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(std::string));
