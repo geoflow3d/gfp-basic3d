@@ -874,6 +874,7 @@ namespace geoflow::nodes::basic3d
 
             size_t n_children = 1;
             if (bag3d_attr_per_part_) n_children = cobject["children"].size();
+            if (n_children==0) return;
             n_attr += n_children;
             // get_attributes
             for(auto& [jname, jval] : cobject["attributes"].items()) {
@@ -934,16 +935,21 @@ namespace geoflow::nodes::basic3d
                cobject["attributes"].contains("b3_val3dity_lod22") &&
                cobject["attributes"].contains("b3_pw_selectie_reden")
                ) {
-                float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
-                std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
-                std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
-                bool val = 
-                    (b3_bag_bag_overlap == 0) && 
-                    (b3_val3dity_lod22 == "[]") && 
-                    ( 
-                      (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
-                      (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED") 
-                    );
+                bool val;
+                if (cobject["attributes"]["b3_bag_bag_overlap"].is_null() || cobject["attributes"]["b3_val3dity_lod22"].is_null() || cobject["attributes"]["b3_pw_selectie_rede]"].is_null()) {
+                  val = false;
+                } else {
+                  float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
+                  std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
+                  std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
+                  val = 
+                      (b3_bag_bag_overlap == 0) && 
+                      (b3_val3dity_lod22 == "[]") && 
+                      ( 
+                        (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
+                        (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED") 
+                      );
+                }
                 for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
             } else {
               for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
