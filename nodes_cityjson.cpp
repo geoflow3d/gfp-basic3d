@@ -872,6 +872,12 @@ namespace geoflow::nodes::basic3d
           if (cobject["type"] == "Building") {
             if (optimal_lod_) optimal_lod_value = cobject["attributes"]["optimal_lod"];
 
+            if (cobject["attributes"].contains("b3_succes")) {
+              if (cobject["attributes"]["b3_succes"].get<bool>() == false) {
+                return;
+              }
+            }
+
             size_t n_children = 1;
             if (bag3d_attr_per_part_) n_children = cobject["children"].size();
             if (n_children==0) return;
