@@ -1011,16 +1011,77 @@ namespace geoflow::nodes::basic3d
                       // get the surface type
                     }
                     int sindex = geom["semantics"]["values"][0][face_i++].get<int>();
-                    auto& stype = geom["semantics"]["surfaces"][ sindex ];
-                    if (stype["type"].get<std::string>() == "RoofSurface") {
+                    auto& semobject = geom["semantics"]["surfaces"][ sindex ];
+                    if (semobject["type"].get<std::string>() == "RoofSurface") {
                       roofparts_.push_polygon(ring, 2);
                       roofparts_lr.push_back(ring);
                       roofparts_lr_attributes.sub_terminal("identificatie").push_back(identificatie);
                       roofparts_lr_attributes.sub_terminal("pand_deel_id").push_back(part_id);
                       roofparts_lr_attributes.sub_terminal("dak_deel_id").push_back(roofpart_i++);
+                      if (semobject.contains("b3_azimut")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_azimut")) {
+                          roofparts_lr_attributes.add_vector("b3_azimut", typeid(float));
+                        }
+                        if (semobject["b3_azimut"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_azimut").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_azimut").push_back(semobject["b3_azimut"].get<float>());
+                        }
+                      }
+                      if (semobject.contains("b3_hellingshoek")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_hellingshoek")) {
+                          roofparts_lr_attributes.add_vector("b3_hellingshoek", typeid(float));
+                        }
+                        if (semobject["b3_hellingshoek"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_hellingshoek").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_hellingshoek").push_back(semobject["b3_hellingshoek"].get<float>());
+                        }
+                      }
+                      if (semobject.contains("b3_h_dak_50p")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_h_dak_50p")) {
+                          roofparts_lr_attributes.add_vector("b3_h_dak_50p", typeid(float));
+                        }
+                        if (semobject["b3_h_dak_50p"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_50p").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_50p").push_back(semobject["b3_h_dak_50p"].get<float>());
+                        }
+                      }
+                      if (semobject.contains("b3_h_dak_70p")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_h_dak_70p")) {
+                          roofparts_lr_attributes.add_vector("b3_h_dak_70p", typeid(float));
+                        }
+                        if (semobject["b3_h_dak_70p"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_70p").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_70p").push_back(semobject["b3_h_dak_70p"].get<float>());
+                        }
+                      }
+                      if (semobject.contains("b3_h_dak_min")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_h_dak_min")) {
+                          roofparts_lr_attributes.add_vector("b3_h_dak_min", typeid(float));
+                        }
+                        if (semobject["b3_h_dak_min"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_min").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_min").push_back(semobject["b3_h_dak_min"].get<float>());
+                        }
+                      }
+                      if (semobject.contains("b3_h_dak_max")) {
+                        if (!roofparts_lr_attributes.has_sub_terminal("b3_h_dak_max")) {
+                          roofparts_lr_attributes.add_vector("b3_h_dak_max", typeid(float));
+                        }
+                        if (semobject["b3_h_dak_max"].is_null()) {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_max").push_back_any(std::any());
+                        } else {
+                          roofparts_lr_attributes.sub_terminal("b3_h_dak_max").push_back(semobject["b3_h_dak_max"].get<float>());
+                        }
+                      }
+
                     }
 
-                    mesh.push_polygon(ring, st_map[stype["type"].get<std::string>()]);
+                    mesh.push_polygon(ring, st_map[semobject["type"].get<std::string>()]);
                   }
                   roofparts.push_back(roofparts_);
                   meshes.push_back(mesh);
