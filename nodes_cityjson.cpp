@@ -887,7 +887,17 @@ namespace geoflow::nodes::basic3d
                     attributes.sub_terminal(jname).push_back(float(0));
                   else
                     attributes.sub_terminal(jname).push_back(jval.get<float>());
-              } else if (jname == "b3_bouwlagen" || jname == "b3_h_dak_min" || jname == "b3_h_dak_max" || jname == "b3_h_dak_50p") {
+              } else if ( jname == "b3_bouwlagen" || 
+                          jname == "b3_h_dak_min" || 
+                          jname == "b3_h_dak_max" || 
+                          jname == "b3_h_dak_50p" ||
+                          jname == "b3_rmse_lod12" ||
+                          jname == "b3_rmse_lod13" ||
+                          jname == "b3_rmse_lod22" ||
+                          jname == "b3_volume_lod12" ||
+                          jname == "b3_volume_lod13" ||
+                          jname == "b3_volume_lod22" 
+                          ) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(float));
                 }
