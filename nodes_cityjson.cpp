@@ -1242,6 +1242,10 @@ namespace geoflow::nodes::basic3d
                 continue;
               }
               auto& jval = cobject["attributes"][name];
+              if (jval.is_null()) {
+                attribute->push_back_any(std::any());
+                continue;
+              }
               if (attribute->accepts_type( typeid(float)) ) {
                 if (jval.is_number_float())
                   attribute->push_back(jval.get<float>());
