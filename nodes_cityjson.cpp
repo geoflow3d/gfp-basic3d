@@ -1155,6 +1155,8 @@ namespace geoflow::nodes::basic3d
         }
         size_t n_attr=0, n_mesh=0;
         std::vector<std::vector<double>> vertices = feature["vertices"];
+        // we can only push once the attributes per CityObject
+        auto pushed_attributes = false;
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
 
           auto ftype = cobject["type"].get<std::string>();
@@ -1234,7 +1236,8 @@ namespace geoflow::nodes::basic3d
               throw(gfIOError("Unsupported geometry type"));
             }
           }
-          if (pushed_geometry) {
+          if (pushed_geometry && !pushed_attributes) {
+            pushed_attributes = true;
             vector_output("feature_type").push_back(ftype);
             for(auto& [name, attribute] : attributes.sub_terminals()) {
               if(!cobject["attributes"].count(name)) {

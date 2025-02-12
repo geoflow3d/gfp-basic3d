@@ -133,8 +133,8 @@ namespace geoflow::nodes::basic3d
     void add_metadata(gfMultiFeatureInputTerminal& attributes_inp, gfSingleFeatureInputTerminal& triangle_collections_inp) {
       auto fsize = triangle_collections_inp.size();
       for (auto& term : attributes_inp.sub_terminals()) {
-        std::cout << "a count="<<term->size()<<std::endl;
         const auto& tname = term->get_name();
+        std::cout << "a[" << tname<< "] count="<<term->size()<<std::endl;
         if (term->accepts_type(typeid(bool))) {
           feature_attribute_map[tname] = std::move(vec1b{});
           std::get<vec1b>(feature_attribute_map[tname]).reserve(fsize);
@@ -928,7 +928,6 @@ namespace geoflow::nodes::basic3d
     // determine approximate centerpoint
     Box global_bbox;
     std::cout << "tc count="<<triangle_collections_inp.size()<<std::endl;
-    std::cout << "a count="<<triangle_collections_inp.size()<<std::endl;
     for (unsigned i = 0; i < triangle_collections_inp.size(); ++i) {
       if (!triangle_collections_inp.get_data_vec()[i].has_value()) {
         std::cout << "skip tc i="<<i<<std::endl;
