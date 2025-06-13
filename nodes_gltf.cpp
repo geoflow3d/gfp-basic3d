@@ -786,6 +786,9 @@ namespace geoflow::nodes::basic3d
       tinygltf::Value::Object metadata_classes;
       metadata_classes[metadata_class_name] = tinygltf::Value(metadata_class);
       tinygltf::Value::Object metadata_schema;
+      // We only have one schema in the file.
+      // https://github.com/CesiumGS/glTF/blob/c96d9a43bb141f7206a10cfd1d2488e0487ffa9c/extensions/2.0/Vendor/EXT_structural_metadata/schema/schema.schema.json#L13C1-L13C2
+      metadata_schema["id"] = tinygltf::Value((std::string)"schema_0");
       metadata_schema["classes"] = tinygltf::Value(metadata_classes);
 
       // Add the property tables for the feature attributes. The property tables
