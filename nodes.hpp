@@ -45,9 +45,9 @@ public:
   }
   void process() override;
   bool parameters_valid() override {
-    if (manager.substitute_globals(filepath).empty()) 
+    if (manager.substitute_globals(filepath).empty())
       return false;
-    else 
+    else
       return true;
   }
 };
@@ -71,9 +71,9 @@ public:
   }
   void process() override;
   bool parameters_valid() override {
-    if (manager.substitute_globals(filepath).empty()) 
+    if (manager.substitute_globals(filepath).empty())
       return false;
-    else 
+    else
       return true;
   }
 };
@@ -101,9 +101,9 @@ public:
   }
   void process() override;
   bool parameters_valid() override {
-    if (manager.substitute_globals(filepath).empty()) 
+    if (manager.substitute_globals(filepath).empty())
       return false;
-    else 
+    else
       return true;
   }
 };
@@ -116,7 +116,7 @@ class CityJSONReaderNode : public Node {
 
   public:
   using Node::Node;
-  
+
   void init() override {
     // declare ouput terminals
     add_vector_output("faces", typeid(LinearRing));
@@ -194,9 +194,9 @@ class CityJSONWriterNode : public Node {
     }
   };
   bool parameters_valid() override {
-    if (manager.substitute_globals(filepath_).empty()) 
+    if (manager.substitute_globals(filepath_).empty())
       return false;
-    else 
+    else
       return true;
   }
   bool inputs_valid() override {
@@ -207,13 +207,13 @@ class CityJSONWriterNode : public Node {
     bool has_connection_without_data = false;
     if (input("geometry_lod12").has_connection() && !input("geometry_lod12").has_data()) {
       has_connection_without_data = has_connection_without_data || true;
-    } 
+    }
     if (input("geometry_lod13").has_connection() && !input("geometry_lod13").has_data()) {
       has_connection_without_data = has_connection_without_data || true;
-    } 
+    }
     if (input("geometry_lod22").has_connection() && !input("geometry_lod22").has_data()) {
       has_connection_without_data = has_connection_without_data || true;
-    } 
+    }
 
     return input("footprints").has_data() && poly_input("attributes").has_data() && !has_connection_without_data && has_connection;
   }
@@ -278,9 +278,9 @@ public:
   };
 
   bool parameters_valid() override {
-    if (manager.substitute_globals(filepath_).empty()) 
+    if (manager.substitute_globals(filepath_).empty())
       return false;
-    else 
+    else
       return true;
   }
 
@@ -332,12 +332,12 @@ class CityJSONFeatureMetadataWriterNode : public Node {
   float translate_x_ = 0;
   float translate_y_ = 0;
   float translate_z_ = 0;
-  
+
   bool prettyPrint_ = false;
-  
+
   std::string CRS_ = "EPSG:7415";
   std::string filepath_;
-  
+
   public:
   using Node::Node;
 
@@ -431,6 +431,7 @@ class CityJSONL2MeshNode : public Node {
   // parameter variables
   bool bag3d_buildings_mode_ = true;
   bool bag3d_attr_per_part_ = true;
+  bool use_parent_attributes_ = true;
   bool optimal_lod_ = true;
   std::string cotypes="";
   std::string atribute_spec=""; // format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name
@@ -457,12 +458,13 @@ public:
     // add_poly_output("lod13_2d_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
     // add_vector_output("lod22_2d_roofparts", typeid(LinearRing)); // Polygon
     // add_poly_output("lod22_2d_attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
-    
+
 
     // declare parameters
     add_param(ParamBool(optimal_lod_, "optimal_lod", "Only output optimal lod"));
     add_param(ParamBool(bag3d_attr_per_part_, "bag3d_attr_per_part", "push attributes for every BuildingPart (3dbag mode only)"));
     add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
+    add_param(ParamBool(use_parent_attributes_, "use_parent_attributes", "Use parent attributes instead of own attributes if a parent exists (non 3dbag mode)"));
     add_param(ParamString(cotypes, "cotypes", "Output only these feature types, comma separated"));
     add_param(ParamText(atribute_spec, "atribute_spec", "Attribute names and types to output. Format: <attribute_name>:<attribute_type>,... eg: name1:string,name2:int,name3:float,name"));
     add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
@@ -555,14 +557,14 @@ public:
     add_param(ParamString(colorTunnelInstallation, "colorTunnelInstallation", "hex color value for feature type TunnelInstallation"));
     add_param(ParamString(colorGenericCityObject, "colorGenericCityObject", "hex color value for feature type GenericCityObject"));
     add_param(ParamString(colorOtherConstruction, "colorOtherConstruction", "hex color value for feature type OtherConstruction"));
-    
+
     // add_param(ParamBool(bag3d_buildings_mode_, "3bag_buildings_mode", "Assume 3dbag building-buildingPart structure"));
     // add_param(ParamString(optimal_lod_value_, "optimal_lod_value", "Pick only this LoD"));
   }
 
   void process() override;
 
-  bool inputs_valid() override {  
+  bool inputs_valid() override {
     return  vector_input("triangles").has_data() &&
             vector_input("normals").has_data() &&
             vector_input("feature_type").has_data();
@@ -580,7 +582,7 @@ public:
 //     add_poly_input("attributes", {typeid(bool), typeid(int), typeid(float), typeid(std::string), typeid(std::string), typeid(Date), typeid(Time), typeid(DateTime)});
 
 
-//     add_param(ParamPath(filepath_, "filepath",  "filepath"));   
+//     add_param(ParamPath(filepath_, "filepath",  "filepath"));
 //   }
 //   void process() override;
 // };

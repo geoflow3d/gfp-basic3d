@@ -24,7 +24,7 @@
 
 namespace geoflow::nodes::basic3d
 {
-  static std::unordered_map <std::string, int> st_map = 
+  static std::unordered_map <std::string, int> st_map =
   {
     {"GroundSurface", 0},
     {"RoofSurface",1},
@@ -68,8 +68,8 @@ namespace geoflow::nodes::basic3d
             LinearRing ring;
             for (const auto& i : ext_face[0]) { // get vertices of outer rings
               ring.push_back({
-                float(verts[i][0] * scale[0]), 
-                float(verts[i][1] * scale[1]), 
+                float(verts[i][0] * scale[0]),
+                float(verts[i][1] * scale[1]),
                 float(verts[i][2] * scale[2])
               });
               // get the surface type
@@ -282,7 +282,7 @@ namespace geoflow::nodes::basic3d
           if(search->second.size()!=0)
             tname = search->second;
         } else if (only_output_renamed) {
-          continue;    
+          continue;
         }
 
         if (!term->get_data_vec()[i].has_value()) {
@@ -339,7 +339,7 @@ namespace geoflow::nodes::basic3d
       building["geometry"].push_back(fp_geometry);
 
       std::vector<std::string> buildingPartIds;
-      
+
 
       bool has_solids = false;
       if (export_lod12) has_solids = multisolids_lod12.get_data_vec()[i].has_value();
@@ -455,7 +455,7 @@ namespace geoflow::nodes::basic3d
                                 manager);
 
     Box bbox;
-    
+
     std::vector<std::array<int,3>>vertices_int;
     for (auto& vertex : vertex_vec) {
       bbox.add(vertex);
@@ -490,7 +490,7 @@ namespace geoflow::nodes::basic3d
     // if (std::string val = manager.substitute_globals(meta_poc_address_); !val.empty()) { contact["address"] = val; }
     if (std::string val = manager.substitute_globals(meta_poc_type_); !val.empty()) { contact["contactType"] = val; }
     if (std::string val = manager.substitute_globals(meta_poc_website_); !val.empty()) { contact["website"] = val; }
-    
+
     metadata["pointOfContact"] = contact;
 
     if (std::string val = manager.substitute_globals(meta_referenceDate_); !val.empty()) {
@@ -507,7 +507,7 @@ namespace geoflow::nodes::basic3d
     if(manager.has_process_crs()) {
       metadata["referenceSystem"] = "https://www.opengis.net/def/crs/" +manager.get_rev_crs_id_auth_name()+ "/0/" +manager.get_rev_crs_id_code();
     }
-    
+
     metadata["title"] = manager.substitute_globals(meta_title_);
 
     outputJSON["metadata"] = metadata;
@@ -626,7 +626,7 @@ namespace geoflow::nodes::basic3d
   }
   void set_vertex_index_offset(nlohmann::json& geometry, const size_t& offset) {
     // std::cout<<offset<< std::endl;
-    
+
     // std::cout<<geometry<< std::endl;
     if(offset==0) return;
     offset_indices(geometry["boundaries"], offset);
@@ -658,7 +658,7 @@ namespace geoflow::nodes::basic3d
       } catch (const std::exception& e) {
         throw(gfIOError(e.what()));
       }
-      
+
       if(feature["type"] != "CityJSONFeature") {
         throw(gfException("input is not CityJSONFeature"));
       }
@@ -695,7 +695,7 @@ namespace geoflow::nodes::basic3d
       // std::cout << json["vertices"] << std::endl;
       vindex_offset = metajson["vertices"].size();
     }
-    
+
     // metadata
     auto& s = metajson["transform"]["scale"];
     auto& t = metajson["transform"]["translate"];
@@ -719,7 +719,7 @@ namespace geoflow::nodes::basic3d
         v[2] = int( v[2].get<double>() - double(c[2]/s[2].get<double>()) );
       }
     }
-    
+
     Box bbox;
     //compute extent
     for(auto& v : metajson["vertices"]) {
@@ -764,9 +764,9 @@ namespace geoflow::nodes::basic3d
   }
 
   LinearRing CityJSONSurface2LinearRing(
-    std::vector<std::vector<int>> face, 
-    const std::vector<std::vector<double>>& vertices, 
-    const std::vector<double>& jtranslate, 
+    std::vector<std::vector<int>> face,
+    const std::vector<std::vector<double>>& vertices,
+    const std::vector<double>& jtranslate,
     const std::vector<double>& jscale,
     geoflow::NodeManager&  manager
   ) {
@@ -774,8 +774,8 @@ namespace geoflow::nodes::basic3d
     for (const auto& i : face[0]) { // get vertices of exterior ring (skipping holes)
       ring.push_back(
         manager.coord_transform_fwd(
-          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
-          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+          double((vertices[i][0] * jscale[0])+jtranslate[0]),
+          double((vertices[i][1] * jscale[1])+jtranslate[1]),
           double((vertices[i][2] * jscale[2])+jtranslate[2])
         )
       );
@@ -831,12 +831,12 @@ namespace geoflow::nodes::basic3d
     if (bag3d_buildings_mode_) {
       auto& lod0_2d = vector_output("lod0_2d");
       auto& roofparts_lr = vector_output("roofparts_lr");
-      
-      auto& roofparts_lr_attributes = poly_output("roofparts_lr_attributes");      
+
+      auto& roofparts_lr_attributes = poly_output("roofparts_lr_attributes");
       roofparts_lr_attributes.add_vector("identificatie", typeid(std::string));
       roofparts_lr_attributes.add_vector("pand_deel_id", typeid(int));
       roofparts_lr_attributes.add_vector("dak_deel_id", typeid(int));
-      
+
       auto& meshes_attributes = poly_output("meshes_attributes");
       meshes_attributes.add_vector("identificatie", typeid(std::string));
       meshes_attributes.add_vector("pand_deel_id", typeid(int));
@@ -858,7 +858,7 @@ namespace geoflow::nodes::basic3d
         } catch (const std::exception& e) {
           throw(gfIOError(e.what()));
         }
-        
+
         if(feature["type"] != "CityJSONFeature") {
           throw(gfException("input is not CityJSONFeature"));
         }
@@ -893,16 +893,16 @@ namespace geoflow::nodes::basic3d
                     attributes.sub_terminal(jname).push_back(float(0));
                   else
                     attributes.sub_terminal(jname).push_back(jval.get<float>());
-              } else if ( jname == "b3_bouwlagen" || 
-                          jname == "b3_h_dak_min" || 
-                          jname == "b3_h_dak_max" || 
+              } else if ( jname == "b3_bouwlagen" ||
+                          jname == "b3_h_dak_min" ||
+                          jname == "b3_h_dak_max" ||
                           jname == "b3_h_dak_50p" ||
                           jname == "b3_rmse_lod12" ||
                           jname == "b3_rmse_lod13" ||
                           jname == "b3_rmse_lod22" ||
                           jname == "b3_volume_lod12" ||
                           jname == "b3_volume_lod13" ||
-                          jname == "b3_volume_lod22" 
+                          jname == "b3_volume_lod22"
                           ) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(float));
@@ -967,19 +967,19 @@ namespace geoflow::nodes::basic3d
                   float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
                   std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
                   std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
-                  val = 
-                      (b3_bag_bag_overlap == 0) && 
-                      (b3_val3dity_lod22 == "[]") && 
-                      ( 
+                  val =
+                      (b3_bag_bag_overlap == 0) &&
+                      (b3_val3dity_lod22 == "[]") &&
+                      (
                         (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
-                        (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED") 
+                        (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED")
                       );
                 }
                 for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
             } else {
               for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
             }
-            
+
             // get lod0 polygon
             auto& geom = cobject["geometry"][0];
             LinearRing ring;
@@ -991,7 +991,7 @@ namespace geoflow::nodes::basic3d
             }
           }
         }
-        
+
         for( auto [id, cobject] : feature["CityObjects"].items() ) {
           // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
@@ -1019,8 +1019,8 @@ namespace geoflow::nodes::basic3d
                     for (const auto& i : ext_face[0]) { // get vertices of outer rings
                       ring.push_back(
                         manager.coord_transform_fwd(
-                          double((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                          double((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                          double((vertices[i][0] * jscale[0])+jtranslate[0]),
+                          double((vertices[i][1] * jscale[1])+jtranslate[1]),
                           double((vertices[i][2] * jscale[2])+jtranslate[2])
                         )
                       );
@@ -1133,7 +1133,7 @@ namespace geoflow::nodes::basic3d
           attributes.add_vector(name, typeid(bool));
         else
           throw(gfException("Illegal type in attribute_spec string: "+manager.substitute_globals(atribute_spec)));
-      } 
+      }
 
       for (size_t i=0; i< features_inp.size(); ++i) {
         // std::cout<< "FI:" << i<< std::endl;
@@ -1149,7 +1149,7 @@ namespace geoflow::nodes::basic3d
         } catch (const std::exception& e) {
           throw(gfIOError(e.what()));
         }
-        
+
         if(feature["type"] != "CityJSONFeature") {
           throw(gfException("input is not CityJSONFeature"));
         }
@@ -1170,7 +1170,7 @@ namespace geoflow::nodes::basic3d
           std::string selected_lod="";
           if(lod_filter.count(ftype)) {
             selected_lod = manager.substitute_globals(lod_filter[ftype]);
-          } 
+          }
           if(selected_lod.size()==0) {
             float max_lodf = 0;
             std::cout<< "\navailable lod: ";
@@ -1189,7 +1189,7 @@ namespace geoflow::nodes::basic3d
           // std::cout<< "CID:" << id << std::endl;
           // std::cout<< "vertex_count:" << cobject[]<< std::endl;
           // get_attributes
-          bool pushed_geometry = false; 
+          bool pushed_geometry = false;
           for (const auto& geom : cobject["geometry"]) {
             // get geometry for highest lod
             std::cout << "found geom with lod "<< geom["lod"] << std::endl;
@@ -1202,8 +1202,8 @@ namespace geoflow::nodes::basic3d
                 for (const auto& i : ext_face[0]) { // get vertices of outer rings
                   ring.push_back(
                     manager.coord_transform_fwd(
-                      float((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                      float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                      float((vertices[i][0] * jscale[0])+jtranslate[0]),
+                      float((vertices[i][1] * jscale[1])+jtranslate[1]),
                       float((vertices[i][2] * jscale[2])+jtranslate[2])
                     )
                   );
@@ -1221,8 +1221,8 @@ namespace geoflow::nodes::basic3d
                 for (const auto& i : ext_face[0]) { // get vertices of outer rings
                   ring.push_back(
                     manager.coord_transform_fwd(
-                      float((vertices[i][0] * jscale[0])+jtranslate[0]), 
-                      float((vertices[i][1] * jscale[1])+jtranslate[1]), 
+                      float((vertices[i][0] * jscale[0])+jtranslate[0]),
+                      float((vertices[i][1] * jscale[1])+jtranslate[1]),
                       float((vertices[i][2] * jscale[2])+jtranslate[2])
                     )
                   );
@@ -1237,14 +1237,23 @@ namespace geoflow::nodes::basic3d
             }
           }
           if (pushed_geometry && !pushed_attributes) {
+            auto& jattributes = cobject["attributes"];
+            if (use_parent_attributes_) {
+                //check if the feature has a parent
+                if(cobject["parents"].size() > 0){
+                    auto& ref = cobject["parents"][0];
+                    jattributes = feature["CityObjects"][ ref ] ["attributes"];
+                }
+            }
+
             pushed_attributes = true;
             vector_output("feature_type").push_back(ftype);
             for(auto& [name, attribute] : attributes.sub_terminals()) {
-              if(!cobject["attributes"].count(name)) {
+              if(!jattributes.count(name)) {
                 attribute->push_back_any(std::any());
                 continue;
               }
-              auto& jval = cobject["attributes"][name];
+              auto& jval = jattributes[name];
               if (jval.is_null()) {
                 attribute->push_back_any(std::any());
                 continue;
