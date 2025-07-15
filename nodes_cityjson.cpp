@@ -36,6 +36,16 @@ namespace geoflow::nodes::basic3d
     {"Door", 7}
   };
 
+  bool calculate_kwaliteitsindicator(const float& b3_bag_bag_overlap, const std::string& b3_val3dity_lod22, const std::string& b3_pw_selectie_reden) {
+    return
+        (b3_bag_bag_overlap == 0) &&
+        (b3_val3dity_lod22 == "[]") &&
+        (
+            (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
+            (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED")
+        );
+  }
+
   void CityJSONReaderNode::process() {
     // get filepath from paramter
 
@@ -667,6 +677,23 @@ namespace geoflow::nodes::basic3d
         // std::cout<< "CID:" << id << std::endl;
         // std::cout<< "vertex_count:" << cobject[]<< std::endl;
 
+        if (cobject["type"] == "Building") {
+            if (
+               cobject["attributes"].contains("b3_bag_bag_overlap") &&
+               cobject["attributes"].contains("b3_val3dity_lod22") &&
+               cobject["attributes"].contains("b3_pw_selectie_reden")
+               ) {
+                float b3_bag_bag_overlap = 0;
+                if (cobject["attributes"]["b3_bag_bag_overlap"].is_number()) {
+                    b3_bag_bag_overlap = cobject["attributes"].value("b3_bag_bag_overlap", 0);
+                }
+                std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
+                std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
+                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22, b3_pw_selectie_reden);
+                cobject["attributes"]["b3_kwaliteitsindicator"] = val;
+               }
+        }
+
         metajson["CityObjects"][id] = cobject;
         //fix vertex indices...
         for (auto& geom : metajson["CityObjects"][id]["geometry"]) {
@@ -960,21 +987,10 @@ namespace geoflow::nodes::basic3d
                cobject["attributes"].contains("b3_val3dity_lod22") &&
                cobject["attributes"].contains("b3_pw_selectie_reden")
                ) {
-                bool val;
-                if (cobject["attributes"]["b3_val3dity_lod22"].is_null() || cobject["attributes"]["b3_pw_selectie_reden"].is_null()) {
-                  val = false;
-                } else {
-                  float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
-                  std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
-                  std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
-                  val =
-                      (b3_bag_bag_overlap == 0) &&
-                      (b3_val3dity_lod22 == "[]") &&
-                      (
-                        (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
-                        (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED")
-                      );
-                }
+                float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
+                std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
+                std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
+                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22, b3_pw_selectie_reden);
                 for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
             } else {
               for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
