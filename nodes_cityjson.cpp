@@ -216,7 +216,8 @@ namespace geoflow::nodes::basic3d
     fs::create_directories(fname.parent_path());
     std::ofstream ofs;
     ofs.open(fname);
-    ofs << std::fixed << std::setprecision(2);
+    // Note that the following line has no effect on the output
+    ofs << std::fixed << std::setprecision(4);
     try {
       if (prettyPrint_)
         ofs << outputJSON.dump(2);
