@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
-project (CoreIO VERSION 0.4.12)
+project (CoreIO VERSION 0.4.13)
 
 if(PROJECT_IS_TOP_LEVEL)
-  find_package(geoflow REQUIRED)
-  include_directories(${geoflow_INCLUDE_DIRS})
+    find_package(geoflow REQUIRED)
+    include_directories(${geoflow_INCLUDE_DIRS})
 endif()
 
 find_package(nlohmann_json 3.10.5 CONFIG REQUIRED)
@@ -32,7 +32,7 @@ geoflow_create_plugin(
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/overdrawoptimizer.cpp
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vfetchoptimizer.cpp
   ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/indexcodec.cpp
-  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vertexcodec.cpp 
+  ${PROJECT_SOURCE_DIR}/thirdparty/meshoptimizer/src/vertexcodec.cpp
 )
 
 target_link_libraries(gfp_core_io PRIVATE geoflow-core nlohmann_json::nlohmann_json)
