@@ -961,7 +961,7 @@ namespace geoflow::nodes::basic3d
                cobject["attributes"].contains("b3_pw_selectie_reden")
                ) {
                 bool val;
-                if (cobject["attributes"]["b3_bag_bag_overlap"].is_null() || cobject["attributes"]["b3_val3dity_lod22"].is_null() || cobject["attributes"]["b3_pw_selectie_rede]"].is_null()) {
+                if (cobject["attributes"]["b3_val3dity_lod22"].is_null() || cobject["attributes"]["b3_pw_selectie_reden"].is_null()) {
                   val = false;
                 } else {
                   float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
