@@ -1257,7 +1257,7 @@ namespace geoflow::nodes::basic3d
             auto& jattributes = cobject["attributes"];
             if (use_parent_attributes_) {
                 //check if the feature has a parent
-                if(cobject["parents"].size() > 0){
+                if(cobject.contains("parents") && cobject["parents"].size() > 0){
                     auto& ref = cobject["parents"][0];
                     jattributes = feature["CityObjects"][ ref ] ["attributes"];
                 }
