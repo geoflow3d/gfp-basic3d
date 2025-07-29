@@ -1287,7 +1287,7 @@ namespace geoflow::nodes::basic3d
                               << " from " << jval.type_name() << " to float"
                               << std::endl;
                   } catch (std::out_of_range const& ex) {
-                    std::cout << "attribute value (" << jval.get<std::string>()
+                    std::cout << "attribute value (" << jval.dump()
                               << ") of " << name
                               << " is out of range for a float" << std::endl;
                   }
@@ -1304,7 +1304,7 @@ namespace geoflow::nodes::basic3d
                               << " from " << jval.type_name() << " to int"
                               << std::endl;
                   } catch (std::out_of_range const& ex) {
-                    std::cout << "attribute value (" << jval.get<std::string>()
+                    std::cout << "attribute value (" << jval.dump()
                               << ") of " << name << " is out of range for an int"
                               << std::endl;
                   }
@@ -1319,7 +1319,11 @@ namespace geoflow::nodes::basic3d
                   attribute->push_back(b);
                 }
               } else if (attribute->accepts_type( typeid(std::string) )) {
-                attribute->push_back(jval.get<std::string>());
+                if (jval.is_string()) {
+                  attribute->push_back(jval.get<std::string>());
+                } else {
+                  attribute->push_back(jval.dump());
+                }
               }
             }
           }
