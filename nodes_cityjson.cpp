@@ -36,14 +36,20 @@ namespace geoflow::nodes::basic3d
     {"Door", 7}
   };
 
-  bool calculate_kwaliteitsindicator(const float& b3_bag_bag_overlap, const std::string& b3_val3dity_lod22, const std::string& b3_pw_selectie_reden) {
-    return
+  bool calculate_kwaliteitsindicator(const float& b3_bag_bag_overlap, const std::any& b3_val3dity_lod22_any, const std::any& b3_pw_selectie_reden_any) {
+    if (b3_val3dity_lod22_any.has_value() && b3_pw_selectie_reden_any.has_value())
+    {
+      auto b3_val3dity_lod22 = std::any_cast<std::string>(b3_val3dity_lod22_any);
+      auto b3_pw_selectie_reden = std::any_cast<std::string>(b3_pw_selectie_reden_any);
+      return
         (b3_bag_bag_overlap == 0) &&
         (b3_val3dity_lod22 == "[]") &&
         (
             (b3_pw_selectie_reden != "_HIGHEST_YET_INSUFFICIENT_COVERAGE") &&
             (b3_pw_selectie_reden != "_LATEST_BUT_OUTDATED")
         );
+    }
+    return false;
   }
 
   void CityJSONReaderNode::process() {
@@ -688,9 +694,21 @@ namespace geoflow::nodes::basic3d
                 if (cobject["attributes"]["b3_bag_bag_overlap"].is_number()) {
                     b3_bag_bag_overlap = cobject["attributes"].value("b3_bag_bag_overlap", 0);
                 }
-                std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
-                std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
-                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22, b3_pw_selectie_reden);
+                // b3_val3dity_lod22 can be null
+                auto jval_val3dity = cobject["attributes"].at("b3_val3dity_lod22");
+                auto b3_val3dity_lod22_any = std::any();
+                if (jval_val3dity.is_string())
+                {
+                  b3_val3dity_lod22_any = jval_val3dity.get<std::string>();
+                }
+                // b3_pw_selectie_reden can be null
+                auto jval_pw_selectie = cobject["attributes"].at("b3_pw_selectie_reden");
+                auto b3_pw_selectie_reden_any = std::any();
+                if (jval_pw_selectie.is_string())
+                {
+                  b3_pw_selectie_reden_any = jval_pw_selectie.get<std::string>();
+                }
+                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22_any, b3_pw_selectie_reden_any);
                 cobject["attributes"]["b3_kwaliteitsindicator"] = val;
                }
         }
@@ -901,7 +919,7 @@ namespace geoflow::nodes::basic3d
             if (optimal_lod_) optimal_lod_value = cobject["attributes"]["optimal_lod"];
 
             if (cobject["attributes"].contains("b3_succes")) {
-              if (cobject["attributes"]["b3_succes"].get<bool>() == false) {
+              if (cobject["attributes"]["b3_succes"].is_null() || cobject["attributes"]["b3_succes"].get<bool>() == false) {
                 return;
               }
             }
@@ -989,9 +1007,21 @@ namespace geoflow::nodes::basic3d
                cobject["attributes"].contains("b3_pw_selectie_reden")
                ) {
                 float b3_bag_bag_overlap = attributes.sub_terminal("b3_bag_bag_overlap").get<float>(attributes.sub_terminal("b3_bag_bag_overlap").size()-1);
-                std::string b3_val3dity_lod22 = cobject["attributes"].value("b3_val3dity_lod22", "[]");
-                std::string b3_pw_selectie_reden = cobject["attributes"].value("b3_pw_selectie_reden", "");
-                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22, b3_pw_selectie_reden);
+                // b3_val3dity_lod22 can be null
+                auto jval_val3dity = cobject["attributes"].at("b3_val3dity_lod22");
+                auto b3_val3dity_lod22_any = std::any();
+                if (jval_val3dity.is_string())
+                {
+                  b3_val3dity_lod22_any = jval_val3dity.get<std::string>();
+                }
+                // b3_pw_selectie_reden can be null
+                auto jval_pw_selectie = cobject["attributes"].at("b3_pw_selectie_reden");
+                auto b3_pw_selectie_reden_any = std::any();
+                if (jval_pw_selectie.is_string())
+                {
+                  b3_pw_selectie_reden_any = jval_pw_selectie.get<std::string>();
+                }
+                bool val = calculate_kwaliteitsindicator(b3_bag_bag_overlap, b3_val3dity_lod22_any, b3_pw_selectie_reden_any);
                 for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back(val);
             } else {
               for (size_t i=0; i<n_children; ++i) attributes.sub_terminal("b3_kwaliteitsindicator").push_back_any(std::any());
