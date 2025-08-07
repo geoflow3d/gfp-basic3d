@@ -948,7 +948,8 @@ namespace geoflow::nodes::basic3d
                           jname == "b3_rmse_lod22" ||
                           jname == "b3_volume_lod12" ||
                           jname == "b3_volume_lod13" ||
-                          jname == "b3_volume_lod22"
+                          jname == "b3_volume_lod22" ||
+                          jname == "b3_h_nok"
                           ) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(float));
@@ -958,7 +959,7 @@ namespace geoflow::nodes::basic3d
                     attributes.sub_terminal(jname).push_back_any(std::any());
                   else
                     attributes.sub_terminal(jname).push_back(jval.get<float>());
-              } else if (jname == "b3_n_vlakken") {
+              } else if (jname == "b3_n_vlakken" || jname == "b3_n_nok") {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(int));
                 }
