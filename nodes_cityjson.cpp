@@ -1297,64 +1297,69 @@ namespace geoflow::nodes::basic3d
             pushed_attributes = true;
             vector_output("feature_type").push_back(ftype);
             for(auto& [name, attribute] : attributes.sub_terminals()) {
-              if(!jattributes.count(name)) {
-                attribute->push_back_any(std::any());
-                continue;
-              }
-              auto& jval = jattributes[name];
-              if (jval.is_null()) {
-                attribute->push_back_any(std::any());
-                continue;
-              }
-              if (attribute->accepts_type( typeid(float)) ) {
-                if (jval.is_number_float())
-                  attribute->push_back(jval.get<float>());
-                else {
-                  try {
-                    const float jval_float{ std::stof(jval.get<std::string>()) };
-                    attribute->push_back(jval_float);
-                  } catch (std::invalid_argument const& ex) {
-                    std::cout << "could not convert attribute " << name
-                              << " from " << jval.type_name() << " to float"
-                              << std::endl;
-                  } catch (std::out_of_range const& ex) {
-                    std::cout << "attribute value (" << jval.dump()
-                              << ") of " << name
-                              << " is out of range for a float" << std::endl;
+              try {
+                if(!jattributes.count(name)) {
+                  attribute->push_back_any(std::any());
+                  continue;
+                }
+                auto& jval = jattributes[name];
+                if (jval.is_null()) {
+                  attribute->push_back_any(std::any());
+                  continue;
+                }
+                if (attribute->accepts_type( typeid(float)) ) {
+                  if (jval.is_number())
+                    attribute->push_back(jval.get<float>());
+                  else {
+                    try {
+                      const float jval_float{ std::stof(jval.get<std::string>()) };
+                      attribute->push_back(jval_float);
+                    } catch (std::invalid_argument const& ex) {
+                      std::cout << "could not convert attribute " << name
+                                << " from " << jval.type_name() << " to float"
+                                << std::endl;
+                    } catch (std::out_of_range const& ex) {
+                      std::cout << "attribute value (" << jval.dump()
+                                << ") of " << name
+                                << " is out of range for a float" << std::endl;
+                    }
+                  }
+                } else if (attribute->accepts_type( typeid(int) )) {
+                  if (jval.is_number())
+                    attribute->push_back(jval.get<int>());
+                  else {
+                    try {
+                      const int jval_int{ std::stoi(jval.get<std::string>()) };
+                      attribute->push_back(jval_int);
+                    } catch (std::invalid_argument const& ex) {
+                      std::cout << "could not convert attribute " << name
+                                << " from " << jval.type_name() << " to int"
+                                << std::endl;
+                    } catch (std::out_of_range const& ex) {
+                      std::cout << "attribute value (" << jval.dump()
+                                << ") of " << name << " is out of range for an int"
+                                << std::endl;
+                    }
+                  }
+                } else if (attribute->accepts_type( typeid(bool) )) {
+                  if (jval.is_boolean())
+                    attribute->push_back(jval.get<bool>());
+                  else {
+                    bool b;
+                    std::istringstream(jval.get<std::string>()) >> std::boolalpha >>
+                      b;
+                    attribute->push_back(b);
+                  }
+                } else if (attribute->accepts_type( typeid(std::string) )) {
+                  if (jval.is_string()) {
+                    attribute->push_back(jval.get<std::string>());
+                  } else {
+                    attribute->push_back(jval.dump());
                   }
                 }
-              } else if (attribute->accepts_type( typeid(int) )) {
-                if (jval.is_number_integer())
-                  attribute->push_back(jval.get<int>());
-                else {
-                  try {
-                    const int jval_int{ std::stoi(jval.get<std::string>()) };
-                    attribute->push_back(jval_int);
-                  } catch (std::invalid_argument const& ex) {
-                    std::cout << "could not convert attribute " << name
-                              << " from " << jval.type_name() << " to int"
-                              << std::endl;
-                  } catch (std::out_of_range const& ex) {
-                    std::cout << "attribute value (" << jval.dump()
-                              << ") of " << name << " is out of range for an int"
-                              << std::endl;
-                  }
-                }
-              } else if (attribute->accepts_type( typeid(bool) )) {
-                if (jval.is_boolean())
-                  attribute->push_back(jval.get<bool>());
-                else {
-                  bool b;
-                  std::istringstream(jval.get<std::string>()) >> std::boolalpha >>
-                    b;
-                  attribute->push_back(b);
-                }
-              } else if (attribute->accepts_type( typeid(std::string) )) {
-                if (jval.is_string()) {
-                  attribute->push_back(jval.get<std::string>());
-                } else {
-                  attribute->push_back(jval.dump());
-                }
+              } catch (std::exception const& ex) {
+                std::cout << "error processing attribute " << name << ": " << ex.what()
+                          << std::endl;
               }
             }
           }
