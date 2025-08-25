@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "nodes.hpp"
+#include <cstdint>
 #include <limits>
 #include <regex>
 
@@ -61,10 +62,10 @@ namespace geoflow::nodes::basic3d
 
     void add_feature(
       const std::string& feature_type,
-      const TriangleCollection& tc, 
+      const TriangleCollection& tc,
       const vec3f& normals
     ) {
-      
+
       // count the nr of vertices and indices stored for this tc
       // std::set<arr6f> vertex_set;
       // std::map<arr6f, unsigned> vertex_map;
@@ -79,7 +80,7 @@ namespace geoflow::nodes::basic3d
           //   std::cout << "n = " << n_[0] << " " << n_[1] << " " << n_[2] << "\n";
           //   std::cout << "skipping point\n";
           //   break;
-          // } 
+          // }
           i++;
 
           auto p = manager.coord_transform_rev(p_);
@@ -91,17 +92,17 @@ namespace geoflow::nodes::basic3d
           auto l = std::sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
 
           if(relative_to_center) {
-            p[0] -= float(center_point[0]); 
+            p[0] -= float(center_point[0]);
             p[1] -= float(center_point[1]);
             p[2] -= float(center_point[2]);
           }
 
           data[feature_type].push_back({
-            float(p[0]), 
-            float(p[1]), 
-            float(p[2]), 
-            n[0]/l, 
-            n[1]/l, 
+            float(p[0]),
+            float(p[1]),
+            float(p[2]),
+            n[0]/l,
+            n[1]/l,
             n[2]/l,
             feature_id_cnt
           });
@@ -117,6 +118,7 @@ namespace geoflow::nodes::basic3d
     }
   };
 
+  typedef std::vector<int8_t> vec1i8;
   struct MetadataHelper {
     // We need to get the attribute values from the input and create contiguous
     //  arrays from them, so that they can be added as a tightly-packed array
@@ -125,7 +127,7 @@ namespace geoflow::nodes::basic3d
       unsigned current_offset{};
       std::vector<unsigned> offsets;
     };
-    typedef std::variant<vec1b, vec1i, vec1f, vec1c> FlexVec;
+    typedef std::variant<vec1i8, vec1i, vec1f, vec1c> FlexVec;
     std::map<std::string, FlexVec> feature_attribute_map{};
     std::map<std::string, StringAttributeOffset> feature_attribute_string_offsets{};
 
@@ -136,8 +138,8 @@ namespace geoflow::nodes::basic3d
         const auto& tname = term->get_name();
         std::cout << "a[" << tname<< "] count="<<term->size()<<std::endl;
         if (term->accepts_type(typeid(bool))) {
-          feature_attribute_map[tname] = std::move(vec1b{});
-          std::get<vec1b>(feature_attribute_map[tname]).reserve(fsize);
+          feature_attribute_map[tname] = std::move(vec1i8{});
+          std::get<vec1i8>(feature_attribute_map[tname]).reserve(fsize);
         } else if (term->accepts_type(typeid(int))) {
           feature_attribute_map[tname] = std::move(vec1i{});
           std::get<vec1i>(feature_attribute_map[tname]).reserve(fsize);
@@ -160,7 +162,7 @@ namespace geoflow::nodes::basic3d
         const auto tc = triangle_collections_inp.get<TriangleCollection>(i);
         if (tc.vertex_count() == 0)
           continue;
-        
+
         // WARNING: Cesium cannot handle 'unsigned long' and if you use it for data,
         //  the data just won't show up in the viewer, without giving any warnings.
         //  See the ComponentDatatype https://github.com/CesiumGS/cesium/blob/4855df37ee77be69923d6e57f807ca5b6219ad95/packages/engine/Source/Core/ComponentDatatype.js#L12
@@ -174,10 +176,11 @@ namespace geoflow::nodes::basic3d
           bool has_value = term->get_data_vec()[i].has_value();
           if (term->accepts_type(typeid(bool))) {
             if (has_value) {
-              std::get<vec1b>(feature_attribute_map[tname]).emplace_back(term->get<const bool&>(i));
+              std::get<vec1i8>(feature_attribute_map[tname]).emplace_back(term->get<const bool&>(i));
             } else {
               // NB bool cannot have proper nodata value, see: https://github.com/CesiumGS/3d-tiles/tree/main/specification/Metadata#required-properties-no-data-values-and-default-values
-              std::get<vec1b>(feature_attribute_map[tname]).emplace_back(false);
+              // so we use int8_t
+              std::get<vec1i8>(feature_attribute_map[tname]).emplace_back(std::numeric_limits<int8_t>::max());
             }
           } else if (term->accepts_type(typeid(int))) {
             if (has_value) {
@@ -372,9 +375,9 @@ namespace geoflow::nodes::basic3d
     vertex_byteSize = sizeof_position + sizeof_normal + sizeof_fid;
 
     size_t element_count = vertices.size();
-    
+
     obuf.resize(element_count * (vertex_byteSize));
-    
+
     for (size_t i=0; i<element_count; ++i) {
       // feature id's
       // if(quantize_fid) {
@@ -425,8 +428,8 @@ namespace geoflow::nodes::basic3d
     FallbackBufferManager dummyBuf;
     bool meshopt_compress;
     std::unordered_map<std::string, int>& colors;
-    
-    GLTFBuilder(bool meshopt_compress, std::unordered_map<std::string, int>& colors_) 
+
+    GLTFBuilder(bool meshopt_compress, std::unordered_map<std::string, int>& colors_)
     : meshopt_compress(meshopt_compress), colors(colors_) {
       model.asset.generator = "Geoflow";
       model.asset.version = "2.0";
@@ -539,7 +542,7 @@ namespace geoflow::nodes::basic3d
         if (quantize_vertex && (*max <= std::numeric_limits<unsigned short>::max())) {
           element_byteSize = sizeof(unsigned short);
           std::vector<unsigned short> part( indices.begin(), indices.end() );
-          
+
           if (meshopt_compress) {
             // meshopt compression
             std::vector<unsigned char> ibuf(meshopt_encodeIndexBufferBound(index_count, vertex_count));
@@ -554,7 +557,7 @@ namespace geoflow::nodes::basic3d
             // meshopt compression
             std::vector<unsigned char> ibuf(meshopt_encodeIndexBufferBound(index_count, vertex_count));
             ibuf.resize(meshopt_encodeIndexBuffer(&ibuf[0], ibuf.size(), &indices[0], index_count));
-            
+
             buffer.append((unsigned char*)ibuf.data(), sizeof(unsigned char), ibuf.size());
           } else {
             buffer.append((unsigned char*)indices.data(), element_byteSize, indices.size());
@@ -568,7 +571,7 @@ namespace geoflow::nodes::basic3d
           bf_indices.buffer     = dummyBuf.idx; //buffer.idx;
           // bf_indices.byteOffset = dummyBuf.buffer.fallbackByteLength;
           dummyBuf.add(bf_indices.byteLength);
-          
+
           bf_indices.extensions = create_ext_meshopt_compression(
             buffer.byteOffset,
             buffer.byteLength,
@@ -582,7 +585,7 @@ namespace geoflow::nodes::basic3d
         }
         auto id_bf_indices    = model.bufferViews.size();
         model.bufferViews.push_back(bf_indices);
-        
+
         // indices setup accessor
         acc_indices.bufferView    = id_bf_indices;
         // acc_indices.byteOffset    = 0;
@@ -597,7 +600,7 @@ namespace geoflow::nodes::basic3d
         acc_indices.maxValues     = { double(*max) };
         primitive.indices = model.accessors.size();
         model.accessors.push_back(acc_indices);
-        
+
         // attributes copy data
         auto [amin, amax] = get_min_max(vertices);
         size_t sizeof_position = 3*sizeof(float);
@@ -608,7 +611,7 @@ namespace geoflow::nodes::basic3d
         if (quantize_vertex){
           std::vector<unsigned char> obuf;
           quantizeVertices(
-            vertices, 
+            vertices,
             scale,
             quantize_fid,
             obuf,
@@ -688,15 +691,15 @@ namespace geoflow::nodes::basic3d
         if (quantize_vertex) {
           acc_positions.componentType = TINYGLTF_COMPONENT_TYPE_SHORT;
           acc_positions.normalized = true;
-          acc_positions.minValues = { 
+          acc_positions.minValues = {
             (double)meshopt_quantizeSnorm(amin[0]/scale[0], 16),
             (double)meshopt_quantizeSnorm(amin[1]/scale[1], 16),
-            (double)meshopt_quantizeSnorm(amin[2]/scale[2], 16) 
+            (double)meshopt_quantizeSnorm(amin[2]/scale[2], 16)
           };
-          acc_positions.maxValues = { 
+          acc_positions.maxValues = {
             (double)meshopt_quantizeSnorm(amax[0]/scale[0], 16),
             (double)meshopt_quantizeSnorm(amax[1]/scale[1], 16),
-            (double)meshopt_quantizeSnorm(amax[2]/scale[2], 16) 
+            (double)meshopt_quantizeSnorm(amax[2]/scale[2], 16)
           };
         } else {
           acc_positions.minValues = { amin[0], amin[1], amin[2] };
@@ -704,7 +707,7 @@ namespace geoflow::nodes::basic3d
         }
         primitive.attributes["POSITION"] = model.accessors.size(); // The index of the accessor for positions
         model.accessors.push_back(acc_positions);
-        
+
         // normals accessor
         acc_normals.bufferView    = id_bf_attributes;
         acc_normals.byteOffset    = sizeof_fid + sizeof_position;
@@ -716,12 +719,12 @@ namespace geoflow::nodes::basic3d
           acc_normals.minValues = {
             (double)meshopt_quantizeSnorm(float(amin[3]),8),
             (double)meshopt_quantizeSnorm(float(amin[4]),8),
-            (double)meshopt_quantizeSnorm(float(amin[5]),8) 
+            (double)meshopt_quantizeSnorm(float(amin[5]),8)
           };
           acc_normals.maxValues = {
             (double)meshopt_quantizeSnorm(float(amax[3]),8),
             (double)meshopt_quantizeSnorm(float(amax[4]),8),
-            (double)meshopt_quantizeSnorm(float(amax[5]),8) 
+            (double)meshopt_quantizeSnorm(float(amax[5]),8)
           };
         } else {
           acc_normals.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
@@ -741,7 +744,7 @@ namespace geoflow::nodes::basic3d
         mesh.primitives.push_back(primitive);
       }
       model.extensionsUsed.emplace_back("EXT_mesh_features");
-      
+
       if (meshopt_compress) {
         model.extensionsUsed.emplace_back("EXT_meshopt_compression");
         model.extensionsRequired.emplace_back("EXT_meshopt_compression");
@@ -762,8 +765,10 @@ namespace geoflow::nodes::basic3d
       for (const auto& [name, value_vec] : MH.feature_attribute_map) {
         tinygltf::Value::Object metadata_property;
         // metadata_property["description"] = tinygltf::Value((std::string)"property description");
-        if (std::holds_alternative<vec1b>(value_vec)) {
-          metadata_property["type"] = tinygltf::Value((std::string)"BOOLEAN");
+        if (std::holds_alternative<vec1i8>(value_vec)) {
+          metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
+          metadata_property["componentType"] = tinygltf::Value((std::string)"INT8");
+          metadata_property["noData"] = tinygltf::Value(std::numeric_limits<int8_t>::max());
         } else if (std::holds_alternative<vec1i>(value_vec)) {
           metadata_property["type"] = tinygltf::Value((std::string)"SCALAR");
           metadata_property["componentType"] = tinygltf::Value((std::string)"INT32");
@@ -806,10 +811,9 @@ namespace geoflow::nodes::basic3d
         unsigned long id_bf_attr_offset(0); // this is always >0 if used
         {
           tinygltf::BufferView bf_attr;
-          if (const vec1b* vec = std::get_if<vec1b>(&value_vec)) {
-            std::cout << "bool attribute not stored!!\n";
+          if (const vec1i8* vec = std::get_if<vec1i8>(&value_vec)) {
             // see https://stackoverflow.com/questions/46115669/why-does-stdvectorbool-have-no-data
-            // buffer.append((unsigned char*)(&vec->operator[](0)), vec->size(), sizeof(bool), 8);
+            buffer.append((unsigned char*)vec->data(), vec->size(), sizeof(int8_t), 8);
           } else if (const vec1i* vec = std::get_if<vec1i>(&value_vec)) {
             buffer.append((unsigned char*)vec->data(), vec->size(), sizeof(int), 8);
           } else if (const vec1f* vec = std::get_if<vec1f>(&value_vec)) {
