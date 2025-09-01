@@ -949,7 +949,8 @@ namespace geoflow::nodes::basic3d
                           jname == "b3_volume_lod12" ||
                           jname == "b3_volume_lod13" ||
                           jname == "b3_volume_lod22" ||
-                          jname == "b3_h_nok"
+                          jname == "b3_h_nok" ||
+                          jname == "b3_h_maaiveld"
                           ) {
                 if (!attributes.has_sub_terminal(jname)) {
                   attributes.add_vector(jname, typeid(float));
